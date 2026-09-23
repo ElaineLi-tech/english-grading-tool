@@ -1,25 +1,9 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxDuration": 300,
-        "includeFiles": [
-          "app.py",
-          "templates/index.html",
-          "templates_user/config.example.json",
-          "requirements.txt"
-        ]
-      }
-    }
-  ],
-  "routes": [
-    { "src": "/", "dest": "api/index.py" },
-    { "src": "/api/index", "dest": "api/index.py" },
-    { "src": "/api/(.*)", "dest": "api/index.py" },
-    { "src": "/download/(.*)", "dest": "api/index.py" },
-    { "src": "/static/(.*)", "dest": "api/index.py" }
+  "rewrites": [
+    { "source": "/", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/download/:path*", "destination": "/api/index" },
+    { "source": "/static/:path*", "destination": "/api/index" }
   ]
 }

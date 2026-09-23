@@ -7,21 +7,15 @@ import traceback
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-# 调试信息：列出项目根目录的文件
-_debug_info = {
-    'project_root': PROJECT_ROOT,
-    'cwd': os.getcwd(),
-    'files': [],
-}
-
-try:
-    _debug_info['files'] = os.listdir(PROJECT_ROOT)
-except Exception as e:
-    _debug_info['list_error'] = str(e)
-
 # 尝试导入 Flask 应用
 _app = None
 _import_error = None
+_debug_files = []
+
+try:
+    _debug_files = os.listdir(PROJECT_ROOT)
+except Exception:
+    pass
 
 try:
     from app import app as _app
@@ -30,24 +24,20 @@ except Exception:
 
 
 def handler(event, context):
-    """Vercel Python Serverless Function handler"""
+    """Vercel Python Serverless Function"""
     
-    # 如果 app 加载失败，返回详细的错误信息
+    # 如果 app 加载失败，返回详细错误
     if _app is None:
         return {
             'statusCode': 500,
-            'headers': {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'X-Debug': 'app-load-failed',
-            },
+            'headers': {'Content-Type': 'text/plain; charset=utf-8'},
             'body': (
                 'App failed to load!\n\n'
                 f'Import error:\n{_import_error}\n\n'
                 f'Project root: {PROJECT_ROOT}\n'
-                f'Current dir: {os.getcwd()}\n'
+                f'CWD: {os.getcwd()}\n'
                 f'Python path: {sys.path}\n\n'
-                f'Files in project root:\n'
-                + '\n'.join(f'  - {f}' for f in _debug_info['files'])
+                f'Files:\n' + '\n'.join(f'  - {f}' for f in _debug_files)
             ),
             'isBase64Encoded': False,
         }
@@ -66,7 +56,7 @@ def handler(event, context):
         else:
             data = body.encode('utf-8') if body else None
         
-        # 使用 Flask test client 发起请求
+        # 使用 Flask test client 处理请求
         with _app.test_client() as client:
             resp = client.open(
                 path,
@@ -77,11 +67,9 @@ def handler(event, context):
                 content_type=headers.get('content-type', ''),
             )
         
-        # 构建响应
         resp_headers = dict(resp.headers)
         content_type = resp_headers.get('Content-Type', 'text/plain')
         
-        # 判断是否为二进制内容
         is_binary = not (
             content_type.startswith('text/') or
             content_type.startswith('application/json') or
@@ -111,10 +99,7 @@ def handler(event, context):
         error_detail = traceback.format_exc()
         return {
             'statusCode': 500,
-            'headers': {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'X-Debug': 'handler-error',
-            },
+            'headers': {'Content-Type': 'text/plain; charset=utf-8'},
             'body': f'Handler error:\n{error_detail}',
             'isBase64Encoded': False,
         }
