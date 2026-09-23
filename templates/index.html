@@ -1,0 +1,3285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语作业自动批改工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .settings-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 0;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+
+        .history-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 56px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+
+        .templates-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 112px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+
+        .rules-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 168px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+
+        .templates-btn:hover,
+        .history-btn:hover,
+        .settings-btn:hover,
+        .rules-btn:hover {
+            background: rgba(255,255,255,0.35);
+            transform: rotate(30deg);
+        }
+
+        /* 配置弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 85vh;
+            overflow-y: auto;
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            color: #1a202c;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 6px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            padding: 10px 20px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #f9fafb;
+        }
+
+        .btn-primary {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-test {
+            padding: 10px 16px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: auto;
+        }
+
+        .config-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .toast.success { background: #10b981; }
+        .toast.error { background: #ef4444; }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #eee;
+            background: #f8f9fa;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 18px 10px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab:hover {
+            background: #eef2ff;
+            color: #4f46e5;
+        }
+
+        .tab.active {
+            color: #4f46e5;
+            background: white;
+            border-bottom-color: #4f46e5;
+        }
+
+        .tab-icon {
+            font-size: 24px;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: #4f46e5;
+            border-radius: 2px;
+        }
+
+        .input-area {
+            margin-bottom: 24px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            padding: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: 'Times New Roman', 'PingFang SC', sans-serif;
+            resize: vertical;
+            transition: border-color 0.3s;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .divider {
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: #eee;
+        }
+
+        .divider::before { left: 0; }
+        .divider::after { right: 0; }
+
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: #4f46e5;
+            background: #eef2ff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .upload-text {
+            font-size: 15px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .upload-hint {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .file-list {
+            margin-top: 16px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .file-name {
+            color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .file-success-icon {
+            color: #10b981;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .file-remove {
+            color: #ef4444;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        /* 历史记录样式 */
+        .history-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #f9fafb;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: background 0.2s;
+        }
+
+        .history-item:hover {
+            background: #f3f4f6;
+        }
+
+        .history-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .history-title {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .history-meta {
+            font-size: 12px;
+            color: #6b7280;
+            display: flex;
+            gap: 12px;
+        }
+
+        .history-score {
+            font-weight: 600;
+            color: #10b981;
+        }
+
+        .history-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .history-btn-download {
+            padding: 6px 14px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .history-btn-download:hover {
+            background: #4338ca;
+        }
+
+        .history-btn-delete {
+            padding: 6px 10px;
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .history-btn-delete:hover {
+            background: #fecaca;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        /* 模板管理样式 */
+        .template-section {
+            margin-bottom: 24px;
+        }
+
+        .template-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .template-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .template-grid-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .template-grid-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .template-grid-card.builtin {
+            border-color: #dbeafe;
+            background: #eff6ff;
+        }
+
+        .template-grid-card.builtin:hover {
+            border-color: #3b82f6;
+        }
+
+        .template-grid-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .template-grid-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .template-grid-desc {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.4;
+        }
+
+        .template-grid-meta {
+            font-size: 11px;
+            color: #9ca3af;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .template-grid-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .template-grid-tag.builtin {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .template-grid-card-body {
+            cursor: pointer;
+        }
+
+        .template-card-actions {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-start;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .template-card-btn-delete {
+            padding: 4px 10px;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .template-card-btn-delete:hover {
+            background: #fee2e2;
+        }
+
+        .template-card-btn-edit {
+            padding: 4px 10px;
+            background: #eef2ff;
+            color: #4338ca;
+            border: 1px solid #c7d2fe;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .template-card-btn-edit:hover {
+            background: #e0e7ff;
+        }
+
+        .template-card-btn-view {
+            padding: 4px 10px;
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .template-card-btn-view:hover {
+            background: #dcfce7;
+        }
+
+        .template-card-btn-reset {
+            padding: 4px 10px;
+            background: #fffbeb;
+            color: #d97706;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .template-card-btn-reset:hover {
+            background: #fef3c7;
+        }
+
+        .template-grid-tag.overridden {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .modal-subtitle {
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 20px;
+            margin-top: -10px;
+        }
+
+        .file-selected-name {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #4f46e5;
+            padding: 8px 12px;
+            background: #eef2ff;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .template-empty {
+            text-align: center;
+            padding: 30px;
+            color: #9ca3af;
+            font-size: 13px;
+            grid-column: 1 / -1;
+        }
+
+        /* 模板预览样式 */
+        .preview-info {
+            margin-bottom: 20px;
+        }
+
+        .preview-row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .preview-label {
+            width: 100px;
+            color: #6b7280;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .preview-value {
+            flex: 1;
+            color: #1f2937;
+            font-size: 13px;
+        }
+
+        .preview-dimensions {
+            margin-top: 16px;
+        }
+
+        .preview-dimensions-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .preview-dimension-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .preview-dim-name {
+            flex: 1;
+            font-weight: 500;
+            color: #374151;
+            font-size: 13px;
+        }
+
+        .preview-dim-score {
+            color: #10b981;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .preview-description {
+            background: #f0fdf4;
+            border-radius: 8px;
+            padding: 14px;
+            color: #166534;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-top: 12px;
+        }
+
+        /* 自定义模板样式 */
+        .template-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .template-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .template-card:hover {
+            border-color: #4f46e5;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .template-card.selected {
+            border-color: #4f46e5;
+            background: #eef2ff;
+        }
+
+        .template-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .template-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .template-desc {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .template-meta {
+            font-size: 11px;
+            color: #999;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .template-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .template-card:hover .template-delete {
+            opacity: 1;
+        }
+
+        .add-template-card {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+        }
+
+        /* 规则卡片样式 */
+        .rule-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 14px 16px;
+            background: #fafafa;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .rule-card.enabled {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+
+        .rule-card.disabled {
+            opacity: 0.6;
+            background: #f9fafb;
+        }
+
+        .rule-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .rule-card-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rule-card-tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            background: #e0e7ff;
+            color: #4f46e5;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .rule-card.enabled .rule-card-tag {
+            background: #bbf7d0;
+            color: #16a34a;
+        }
+
+        .rule-card-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .rule-card:hover .rule-card-actions {
+            opacity: 1;
+        }
+
+        .rule-card-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+            color: #666;
+        }
+
+        .rule-card-btn:hover {
+            background: rgba(0,0,0,0.08);
+        }
+
+        .rule-card-btn.delete:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .rule-card-content {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .rule-card.expanded .rule-card-content {
+            -webkit-line-clamp: unset;
+            display: block;
+        }
+
+        .rule-card-toggle {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            background: #d1d5db;
+            border-radius: 11px;
+            cursor: pointer;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+
+        .rule-card-toggle.active {
+            background: #22c55e;
+        }
+
+        .rule-card-toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .rule-card-toggle.active::after {
+            transform: translateX(18px);
+        }
+
+        .rule-card-footer {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rule-card-type {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .rule-card-expand {
+            font-size: 12px;
+            color: #4f46e5;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .add-template-card {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 120px;
+        }
+
+        .add-template-card:hover {
+            border-color: #4f46e5;
+            background: #f5f3ff;
+        }
+
+        .add-icon {
+            font-size: 36px;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+        .add-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* 模态框 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .form-textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-secondary {
+            flex: 1;
+            padding: 12px;
+            background: #f3f4f6;
+            color: #333;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-primary {
+            flex: 2;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 14px;
+        }
+
+        .selected-template-info {
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .selected-template-info.show {
+            display: block;
+        }
+
+        .selected-template-name {
+            font-weight: 600;
+            color: #4f46e5;
+            margin-bottom: 4px;
+        }
+
+        .selected-template-desc {
+            font-size: 13px;
+            color: #6366f1;
+        }
+
+        .submit-btn {
+            width: 280px;
+            padding: 20px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 28px;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
+            letter-spacing: 2px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 28px rgba(102, 126, 234, 0.5);
+        }
+
+        .submit-btn:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .submit-btn {
+                width: 100%;
+                padding: 18px;
+                font-size: 18px;
+            }
+        }
+
+        .result-area {
+            margin-top: 24px;
+            padding: 24px;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .result-area.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #166534;
+            margin-bottom: 12px;
+        }
+
+        .score-display {
+            font-size: 32px;
+            font-weight: bold;
+            color: #166534;
+            margin-bottom: 16px;
+        }
+
+        .score-display .full {
+            font-size: 18px;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .download-btn {
+            display: inline-block;
+            padding: 12px 28px;
+            background: #16a34a;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .download-btn:hover {
+            background: #15803d;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e5e7eb;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .error-msg {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .error-msg.show {
+            display: block;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .feature-card {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .feature-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            font-size: 12px;
+            color: #888;
+        }
+
+        @media (max-width: 640px) {
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .tab {
+                font-size: 13px;
+                padding: 14px 6px;
+            }
+
+            .tab-icon {
+                font-size: 20px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 英语作业自动批改工具</h1>
+            <p>一键批改，快速生成Word文档</p>
+            <button class="settings-btn" onclick="openSettings()" title="AI配置">⚙</button>
+            <button class="history-btn" onclick="openHistory()" title="历史记录">📋</button>
+            <button class="templates-btn" onclick="openTemplateManager()" title="模板管理">📑</button>
+            <button class="rules-btn" onclick="openRuleManager()" title="批改规则">📏</button>
+        </div>
+
+        <!-- 配置弹窗 -->
+        <div class="modal-overlay" id="settings-modal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>⚙️ AI模型配置</h3>
+                    <button class="modal-close" onclick="closeSettings()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="config-section-title">豆包大模型（火山引擎）</div>
+                    
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" id="doubao-api-key" placeholder="请输入火山引擎API Key">
+                        <div class="form-hint">在火山引擎控制台 → 访问控制 → API密钥管理中获取</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>模型名称</label>
+                        <input type="text" id="doubao-model" placeholder="doubao-seed-2-0-mini-260428">
+                        <div class="form-hint">默认：doubao-seed-2-0-mini-260428，如需更换模型可修改</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-test" onclick="testConfig()">🔌 测试连接</button>
+                    <button class="btn-secondary" onclick="closeSettings()">取消</button>
+                    <button class="btn-primary" onclick="saveConfig()">保存配置</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast提示 -->
+        <div class="toast" id="toast"></div>
+
+        <div class="main-card">
+            <div class="tabs">
+                <div class="tab active" data-type="essay_zhongkao" onclick="switchTab(this)">
+                    <span class="tab-icon">📖</span>
+                    中考作文
+                </div>
+                <div class="tab" data-type="essay_gaokao" onclick="switchTab(this)">
+                    <span class="tab-icon">📚</span>
+                    高考作文
+                </div>
+                <div class="tab" data-type="summary" onclick="switchTab(this)">
+                    <span class="tab-icon">📋</span>
+                    概要写作
+                </div>
+                <div class="tab" data-type="translation" onclick="switchTab(this)">
+                    <span class="tab-icon">🌐</span>
+                    翻译批改
+                </div>
+                <div class="tab" data-type="objective" onclick="switchTab(this)">
+                    <span class="tab-icon">📝</span>
+                    客观题
+                </div>
+                <div class="tab" data-type="custom" onclick="switchTab(this)">
+                    <span class="tab-icon">✨</span>
+                    自定义模板
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- 中考作文 -->
+                <div class="tab-content active" id="tab-essay_zhongkao">
+                    <div class="features">
+                        <div class="feature-card">
+                            <div class="feature-icon">🎯</div>
+                            <div class="feature-title">三维评分</div>
+                            <div class="feature-desc">内容+语言+结构</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">✏️</div>
+                            <div class="feature-title">逐句批注</div>
+                            <div class="feature-desc">错误+分析+建议</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📄</div>
+                            <div class="feature-title">范文参考</div>
+                            <div class="feature-desc">中英对照详解</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="section-title">输入学生作文</div>
+                        <textarea id="text-essay_zhongkao" placeholder="请粘贴学生作文内容，或上传图片/PDF文件..."></textarea>
+                    </div>
+
+                    <div class="divider">或</div>
+
+                    <div class="upload-area" id="upload-essay_zhongkao" onclick="document.getElementById('file-essay_zhongkao').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">点击上传或拖拽文件到此处</div>
+                        <div class="upload-hint">支持多张图片、PDF、Word文档</div>
+                        <input type="file" id="file-essay_zhongkao" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'essay_zhongkao')">
+                    </div>
+                    <div class="file-list" id="file-list-essay_zhongkao"></div>
+                </div>
+
+                <!-- 高考作文 -->
+                <div class="tab-content" id="tab-essay_gaokao">
+                    <div class="features">
+                        <div class="feature-card">
+                            <div class="feature-icon">🎯</div>
+                            <div class="feature-title">25分制评分</div>
+                            <div class="feature-desc">上海高考标准</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">✏️</div>
+                            <div class="feature-title">详细批注</div>
+                            <div class="feature-desc">逐句错误解析</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📄</div>
+                            <div class="feature-title">范文+升华</div>
+                            <div class="feature-desc">好词好句学习</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="section-title">输入学生作文</div>
+                        <textarea id="text-essay_gaokao" placeholder="请粘贴学生作文内容，或上传图片/PDF文件..."></textarea>
+                    </div>
+
+                    <div class="divider">或</div>
+
+                    <div class="upload-area" id="upload-essay_gaokao" onclick="document.getElementById('file-essay_gaokao').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">点击上传或拖拽文件到此处</div>
+                        <div class="upload-hint">支持多张图片、PDF、Word文档</div>
+                        <input type="file" id="file-essay_gaokao" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'essay_gaokao')">
+                    </div>
+                    <div class="file-list" id="file-list-essay_gaokao"></div>
+                </div>
+
+                <!-- 概要写作 -->
+                <div class="tab-content" id="tab-summary">
+                    <div class="features">
+                        <div class="feature-card">
+                            <div class="feature-icon">🎯</div>
+                            <div class="feature-title">要点评分</div>
+                            <div class="feature-desc">内容+语言+结构</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">✏️</div>
+                            <div class="feature-title">句型分析</div>
+                            <div class="feature-desc">句型转换指导</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📄</div>
+                            <div class="feature-title">参考概要</div>
+                            <div class="feature-desc">高分范文解析</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="section-title">输入原文（可选）</div>
+                        <textarea id="text-summary-original" placeholder="请粘贴原文内容（可选，用于更精准的批改）..." style="min-height:100px"></textarea>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="section-title">输入学生概要</div>
+                        <textarea id="text-summary" placeholder="请粘贴学生写的概要内容..."></textarea>
+                    </div>
+
+                    <div class="divider">或</div>
+
+                    <div class="upload-area" id="upload-summary" onclick="document.getElementById('file-summary').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">点击上传或拖拽文件到此处</div>
+                        <div class="upload-hint">支持多张图片、PDF、Word文档</div>
+                        <input type="file" id="file-summary" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'summary')">
+                    </div>
+                    <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 6px;">
+                        💡 可同时上传原文图片 + 学生答案图片，AI会自动识别合并后批改
+                    </div>
+                    <div class="file-list" id="file-list-summary"></div>
+
+                    <!-- 评分标准区域 -->
+                    <div class="grading-standard-section" id="grading-standard-summary" style="margin-top: 16px;">
+                        <div class="section-title" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>📋 评分标准</span>
+                            <span class="standard-badge" id="standard-badge-summary" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e0e7ff; color: #4338ca; font-weight: 500;">默认</span>
+                        </div>
+                        <div class="standard-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="font-size: 24px;">📊</div>
+                                <div>
+                                    <div class="standard-name" id="standard-name-summary" style="font-size: 13px; font-weight: 500; color: #334155;">概要写作评分标准（3+2得分点）</div>
+                                    <div class="standard-desc" id="standard-desc-summary" style="font-size: 11px; color: #94a3b8; margin-top: 2px;">系统默认评分标准</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="standard-btn" onclick="viewGradingStandard('summary')" style="padding: 5px 12px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; color: #475569; cursor: pointer; transition: all 0.2s;">查看</button>
+                                <button class="standard-btn" onclick="document.getElementById('standard-file-summary').click()" style="padding: 5px 12px; background: #4f46e5; border: 1px solid #4f46e5; border-radius: 6px; font-size: 12px; color: white; cursor: pointer; transition: all 0.2s;">修改</button>
+                                <input type="file" id="standard-file-summary" accept=".doc,.docx,.pdf,.txt" style="display:none" onchange="uploadGradingStandard('summary', this.files[0])">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 翻译批改 -->
+                <div class="tab-content" id="tab-translation">
+                    <div class="features">
+                        <div class="feature-card">
+                            <div class="feature-icon">🎯</div>
+                            <div class="feature-title">准确评分</div>
+                            <div class="feature-desc">采点给分制</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">✏️</div>
+                            <div class="feature-title">逐句批注</div>
+                            <div class="feature-desc">语法+词汇+句式</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📄</div>
+                            <div class="feature-title">参考译文</div>
+                            <div class="feature-desc">精准翻译解析</div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="section-title">输入原文</div>
+                        <textarea id="text-translation-original" placeholder="请粘贴需要翻译的原文..." style="min-height:100px"></textarea>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="section-title">输入学生译文</div>
+                        <textarea id="text-translation" placeholder="请粘贴学生的翻译内容..."></textarea>
+                    </div>
+
+                    <div class="divider">或</div>
+
+                    <div class="upload-area" id="upload-translation" onclick="document.getElementById('file-translation').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">点击上传或拖拽文件到此处</div>
+                        <div class="upload-hint">支持多张图片、PDF、Word文档</div>
+                        <input type="file" id="file-translation" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'translation')">
+                    </div>
+                    <div class="file-list" id="file-list-translation"></div>
+                </div>
+
+                <!-- 客观题 -->
+                <div class="tab-content" id="tab-objective">
+                    <div class="features">
+                        <div class="feature-card">
+                            <div class="feature-icon">✅</div>
+                            <div class="feature-title">自动判题</div>
+                            <div class="feature-desc">对照答案找错题</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📊</div>
+                            <div class="feature-title">错题分析</div>
+                            <div class="feature-desc">详细解析错因</div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📄</div>
+                            <div class="feature-title">原卷标注</div>
+                            <div class="feature-desc">原题+错题分析</div>
+                        </div>
+                    </div>
+
+                    <div class="section-title">1. 上传学生作业</div>
+                    <div class="upload-area objective-upload" id="upload-objective-student" onclick="document.getElementById('file-objective-student').click()">
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-text">点击上传学生作业</div>
+                        <div class="upload-hint">支持图片（PNG/JPG）、PDF</div>
+                        <input type="file" id="file-objective-student" multiple accept="image/*,.pdf" style="display:none" onchange="handleObjectiveFiles(this.files, 'student')">
+                    </div>
+                    <div class="file-list" id="file-list-objective-student"></div>
+
+                    <div class="section-title" style="margin-top: 20px;">2. 上传题目解析</div>
+                    <div class="upload-area objective-upload" id="upload-objective-answer" onclick="document.getElementById('file-objective-answer').click()">
+                        <div class="upload-icon">📑</div>
+                        <div class="upload-text">点击上传题目解析</div>
+                        <div class="upload-hint">支持Word文档（.doc/.docx）</div>
+                        <input type="file" id="file-objective-answer" accept=".doc,.docx" style="display:none" onchange="handleObjectiveFiles(this.files, 'answer')">
+                    </div>
+                    <div class="file-list" id="file-list-objective-answer"></div>
+                </div>
+
+                <!-- 自定义模板 -->
+                <div class="tab-content" id="tab-custom">
+                    <div class="section-title">选择批改模板</div>
+
+                    <div class="selected-template-info" id="selected-template-info">
+                        <div class="selected-template-name" id="selected-template-name"></div>
+                        <div class="selected-template-desc" id="selected-template-desc"></div>
+                    </div>
+
+                    <div class="template-list" id="template-list">
+                        <!-- 模板卡片动态加载 -->
+                    </div>
+
+                    <div class="section-title" style="margin-top: 24px;">输入学生作业</div>
+                    <textarea id="text-custom" placeholder="请粘贴学生作业内容，或上传图片/PDF文件..."></textarea>
+
+                    <div class="divider">或</div>
+
+                    <div class="upload-area" id="upload-custom" onclick="document.getElementById('file-custom').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">点击上传或拖拽文件到此处</div>
+                        <div class="upload-hint">支持多张图片、PDF、Word文档</div>
+                        <input type="file" id="file-custom" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'custom')">
+                    </div>
+                    <div class="file-list" id="file-list-custom"></div>
+                </div>
+
+                <!-- 提交按钮 -->
+                <button class="submit-btn" id="submit-btn" onclick="submitGrade()">
+                    ✨ 开始批改
+                </button>
+
+                <!-- 加载中 -->
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">正在批改中，请稍候...</div>
+                </div>
+
+                <!-- 错误提示 -->
+                <div class="error-msg" id="error-msg"></div>
+
+                <!-- 结果区域 -->
+                <div class="result-area" id="result-area">
+                    <div class="result-title">✅ 批改完成！</div>
+                    <div class="score-display">
+                        <span id="result-score">0</span>
+                        <span class="full">/ <span id="result-full-score">0</span> 分</span>
+                    </div>
+                    <div id="result-rules-info" style="display: none; margin-top: 12px; padding: 10px 14px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; font-size: 13px; color: #065f46;">
+                        <span style="font-weight: 600;">📏 已应用规则：</span>
+                        <span id="result-rules-list"></span>
+                    </div>
+                    <a href="#" id="download-link" class="download-btn" download>
+                        📥 下载批改文档（Word）
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    <!-- 历史记录弹窗 -->
+    <div class="modal-overlay" id="history-modal">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>📋 批改历史记录</h3>
+                <button class="modal-close" onclick="closeHistory()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="history-list" class="history-list">
+                    <div class="history-empty">暂无历史记录</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模板管理弹窗 -->
+    <div class="modal-overlay" id="template-manager-modal">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>📑 模板管理</h3>
+                <button class="modal-close" onclick="closeTemplateManager()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="template-section">
+                    <div class="template-section-title">内置模板</div>
+                    <div id="builtin-template-list" class="template-grid"></div>
+                </div>
+                <div class="template-section">
+                    <div class="template-section-title">自定义模板</div>
+                    <div id="custom-template-list" class="template-grid">
+                        <div class="template-empty">暂无自定义模板</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模板预览弹窗 -->
+    <div class="modal-overlay" id="template-preview-modal">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="preview-template-title">模板详情</h3>
+                <button class="modal-close" onclick="closeTemplatePreview()">&times;</button>
+            </div>
+            <div class="modal-body" id="template-preview-content">
+            </div>
+        </div>
+    </div>
+
+    <!-- 模板内容预览弹窗 -->
+    <div class="modal-overlay" id="template-content-modal" style="z-index: 1100;">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="template-content-title">📄 模板格式预览</h3>
+                <button class="modal-close" onclick="closeTemplateContent()">&times;</button>
+            </div>
+            <div class="modal-body" id="template-content-body" style="max-height: 70vh; overflow-y: auto;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 规则管理弹窗 -->
+    <div class="modal-overlay" id="rule-manager-modal">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>📏 批改规则管理</h3>
+                <button class="modal-close" onclick="closeRuleManager()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 13px; color: #666;">
+                        自定义规则会在AI批改时自动注入，让批改更符合您的要求
+                    </div>
+                    <button class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;" onclick="openCreateRule()">
+                        + 添加规则
+                    </button>
+                </div>
+                <div id="rule-list" style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="empty-state" style="padding: 30px; text-align: center; color: #999;">
+                        <div style="font-size: 36px; margin-bottom: 8px;">📝</div>
+                        <div>暂无自定义规则</div>
+                        <div style="font-size: 12px; margin-top: 4px;">点击"添加规则"创建您的第一条批改规则</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建/编辑规则弹窗 -->
+    <div class="modal-overlay" id="rule-edit-modal">
+        <div class="modal">
+            <div class="modal-title" id="rule-edit-title">✨ 添加批改规则</div>
+            <div class="modal-subtitle">规则会自动注入AI批改prompt中</div>
+
+            <div class="form-group">
+                <label class="form-label">规则名称 *</label>
+                <input type="text" class="form-input" id="rule-name-input" placeholder="如：重点关注时态错误">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">适用类型</label>
+                <select class="form-input" id="rule-applies-select">
+                    <option value="all">全部类型</option>
+                    <option value="essay_zhongkao">中考作文</option>
+                    <option value="essay_gaokao">高考作文</option>
+                    <option value="essay_ielts">雅思作文</option>
+                    <option value="summary">概要写作</option>
+                    <option value="translation">翻译</option>
+                    <option value="objective">客观题</option>
+                    <option value="custom">自定义模板</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">规则内容 *</label>
+                <textarea class="form-input" id="rule-content-input" rows="6" placeholder="描述您希望AI遵守的批改规则，例如：&#10;- 请特别关注学生的时态使用，标出所有时态错误&#10;- 对于语法错误，先给出正确答案再分析原因&#10;- 评语要用鼓励的语气，先夸后批"></textarea>
+                <div style="font-size: 12px; color: #999; margin-top: 4px;">
+                    规则内容会直接发送给AI，请尽量描述清晰具体
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeRuleEdit()">取消</button>
+                <button class="btn btn-primary" onclick="submitRule()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改内置模板弹窗 -->
+    <div class="modal-overlay" id="edit-builtin-template-modal">
+        <div class="modal">
+            <div class="modal-title">✏️ 修改批改模板</div>
+            <div class="modal-subtitle" id="edit-builtin-subtitle"></div>
+
+            <div class="form-group">
+                <label class="form-label">模板名称 *</label>
+                <input type="text" class="form-input" id="edit-template-name" placeholder="如：中考作文批改">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">满分 *</label>
+                <input type="number" class="form-input" id="edit-template-score" placeholder="如：20">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">模板说明</label>
+                <textarea class="form-input" id="edit-template-desc" rows="3" placeholder="简要描述这个模板的批改标准和特点"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">上传模板文件（可选）</label>
+                <div class="file-upload-area" onclick="document.getElementById('edit-template-file').click()">
+                    <div class="upload-icon">📎</div>
+                    <div class="upload-text">点击上传模板样例文件</div>
+                    <div class="upload-hint">支持 PDF / Word / 图片格式，供AI参考批改风格</div>
+                </div>
+                <input type="file" id="edit-template-file" style="display: none;" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onchange="onEditTemplateFileChange(this)">
+                <div id="edit-template-file-name" class="file-selected-name"></div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeEditBuiltinTemplate()">取消</button>
+                <button class="btn btn-primary" onclick="submitEditBuiltinTemplate()">保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建模板模态框 -->
+    <div class="modal-overlay" id="create-template-modal">
+        <div class="modal">
+            <div class="modal-title">✨ 创建自定义批改模板</div>
+
+            <div class="form-group">
+                <label class="form-label">模板名称 *</label>
+                <input type="text" class="form-input" id="template-name" placeholder="如：雅思小作文批改、首字母填空批改等">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">模板描述</label>
+                <textarea class="form-input form-textarea" id="template-desc" placeholder="简要描述这个模板适用于什么题型、批改标准等"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">满分</label>
+                <input type="number" class="form-input" id="template-score" value="20" min="1" max="100">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">上传批改模板文件</label>
+                <div class="upload-area" style="padding: 20px;" onclick="document.getElementById('template-file-input').click()">
+                    <div class="upload-icon" style="font-size: 28px;">📄</div>
+                    <div class="upload-text">点击上传批改模板</div>
+                    <div class="upload-hint">支持 Word 文档 (.docx)，作为批改样式参考</div>
+                    <input type="file" id="template-file-input" accept=".doc,.docx" style="display:none" onchange="handleTemplateFile(this)">
+                </div>
+                <div id="template-file-name" style="font-size: 13px; color: #666; margin-top: 8px;"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeCreateModal()">取消</button>
+                <button class="btn-primary" onclick="createTemplate()">创建模板</button>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align:center; color:white; opacity:0.8; margin-top:30px; font-size:13px;">
+            英语作业自动批改工具 · 高效便捷
+        </div>
+    </div>
+
+    <script>
+        let currentType = 'essay_zhongkao';
+        let uploadedFiles = {};
+        let customTemplates = [];
+        let selectedTemplateId = null;
+        let templateFileToUpload = null;
+
+        // 页面加载时获取模板列表
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTemplates();
+            loadAIConfig();
+            // 加载概要写作评分标准
+            loadGradingStandard('summary');
+        });
+
+        // 加载模板列表
+        async function loadTemplates() {
+            try {
+                const res = await fetch('/api/templates');
+                const data = await res.json();
+                if (data.success) {
+                    customTemplates = data.templates;
+                    renderTemplateList();
+                }
+            } catch (e) {
+                console.error('加载模板失败:', e);
+            }
+        }
+
+        // 渲染模板列表
+        function renderTemplateList() {
+            const listEl = document.getElementById('template-list');
+            listEl.innerHTML = '';
+
+            // 添加"新建模板"卡片
+            const addCard = document.createElement('div');
+            addCard.className = 'add-template-card';
+            addCard.onclick = openCreateModal;
+            addCard.innerHTML = `
+                <div class="add-icon">+</div>
+                <div class="add-text">创建新模板</div>
+            `;
+            listEl.appendChild(addCard);
+
+            // 添加已有模板卡片
+            customTemplates.forEach(t => {
+                const card = document.createElement('div');
+                card.className = 'template-card' + (selectedTemplateId === t.id ? ' selected' : '');
+                card.onclick = (e) => {
+                    if (!e.target.classList.contains('template-delete')) {
+                        selectTemplate(t);
+                    }
+                };
+                card.innerHTML = `
+                    <span class="template-delete" onclick="deleteTemplate('${t.id}', event)">×</span>
+                    <div class="template-icon">📋</div>
+                    <div class="template-name">${t.name}</div>
+                    <div class="template-desc">${t.description || '暂无描述'}</div>
+                    <div class="template-meta">
+                        <span>满分：${t.full_score}分</span>
+                        <span>使用${t.usage_count || 0}次</span>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        // 选择模板
+        function selectTemplate(template) {
+            selectedTemplateId = template.id;
+            document.getElementById('selected-template-info').classList.add('show');
+            document.getElementById('selected-template-name').textContent = '✓ 已选择：' + template.name;
+            document.getElementById('selected-template-desc').textContent = template.description || '满分：' + template.full_score + '分';
+            renderTemplateList();
+        }
+
+        // 打开创建模态框
+        function openCreateModal() {
+            document.getElementById('create-template-modal').classList.add('show');
+            document.getElementById('template-name').value = '';
+            document.getElementById('template-desc').value = '';
+            document.getElementById('template-score').value = '20';
+            document.getElementById('template-file-name').textContent = '';
+            templateFileToUpload = null;
+        }
+
+        // 关闭创建模态框
+        function closeCreateModal() {
+            document.getElementById('create-template-modal').classList.remove('show');
+        }
+
+        // 处理模板文件选择
+        function handleTemplateFile(input) {
+            if (input.files && input.files[0]) {
+                templateFileToUpload = input.files[0];
+                document.getElementById('template-file-name').textContent =
+                    '📎 已选择：' + templateFileToUpload.name +
+                    ' (' + (templateFileToUpload.size / 1024).toFixed(1) + ' KB)';
+            }
+        }
+
+        // 创建模板
+        async function createTemplate() {
+            const name = document.getElementById('template-name').value.trim();
+            const description = document.getElementById('template-desc').value.trim();
+            const fullScore = document.getElementById('template-score').value;
+
+            if (!name) {
+                alert('请输入模板名称');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('description', description);
+            formData.append('full_score', fullScore);
+            if (templateFileToUpload) {
+                formData.append('template_file', templateFileToUpload);
+            }
+
+            try {
+                const res = await fetch('/api/templates', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    customTemplates.push(data.template);
+                    renderTemplateList();
+                    closeCreateModal();
+                    // 自动选中新创建的模板
+                    selectTemplate(data.template);
+                } else {
+                    alert('创建失败：' + data.error);
+                }
+            } catch (e) {
+                alert('创建失败：' + e.message);
+            }
+        }
+
+        // 删除模板
+        async function deleteTemplate(id, event) {
+            event.stopPropagation();
+            if (!confirm('确定要删除这个模板吗？')) return;
+
+            try {
+                const res = await fetch('/api/templates/' + id, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    customTemplates = customTemplates.filter(t => t.id !== id);
+                    if (selectedTemplateId === id) {
+                        selectedTemplateId = null;
+                        document.getElementById('selected-template-info').classList.remove('show');
+                    }
+                    renderTemplateList();
+                } else {
+                    alert('删除失败：' + data.error);
+                }
+            } catch (e) {
+                alert('删除失败：' + e.message);
+            }
+        }
+
+        // 切换标签
+        function switchTab(el) {
+            const type = el.dataset.type;
+            currentType = type;
+
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + type).classList.add('active');
+
+            // 重置结果
+            document.getElementById('result-area').classList.remove('show');
+            document.getElementById('error-msg').classList.remove('show');
+        }
+
+        // 处理文件上传
+        function handleFiles(files, type) {
+            if (!uploadedFiles[type]) uploadedFiles[type] = [];
+
+            const listEl = document.getElementById('file-list-' + type);
+
+            for (let f of files) {
+                uploadedFiles[type].push(f);
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <span class="file-name">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB) <span class="file-success-icon" title="上传成功">✓</span></span>
+                    <span class="file-remove" onclick="removeFile(this, '${type}', ${uploadedFiles[type].length - 1})">×</span>
+                `;
+                listEl.appendChild(item);
+            }
+        }
+
+        // 删除文件
+        function removeFile(el, type, index) {
+            uploadedFiles[type].splice(index, 1);
+            el.parentElement.remove();
+        }
+
+        // 客观题文件处理
+        let objectiveFiles = {
+            student: [],
+            answer: []
+        };
+
+        function handleObjectiveFiles(files, subType) {
+            if (subType === 'answer') {
+                // 答案解析只能有一个文件，替换
+                objectiveFiles.answer = [];
+                document.getElementById('file-list-objective-answer').innerHTML = '';
+            }
+
+            const listEl = document.getElementById('file-list-objective-' + subType);
+
+            for (let f of files) {
+                objectiveFiles[subType].push(f);
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                const label = subType === 'student' ? '📄' : '📑';
+                item.innerHTML = `
+                    <span class="file-name">${label} ${f.name} (${(f.size/1024).toFixed(1)} KB) <span class="file-success-icon" title="上传成功">✓</span></span>
+                    <span class="file-remove" onclick="removeObjectiveFile(this, '${subType}', ${objectiveFiles[subType].length - 1})">×</span>
+                `;
+                listEl.appendChild(item);
+            }
+        }
+
+        function removeObjectiveFile(el, subType, index) {
+            objectiveFiles[subType].splice(index, 1);
+            el.parentElement.remove();
+        }
+
+        // 拖拽上传
+        document.querySelectorAll('.upload-area').forEach(area => {
+            area.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                area.classList.add('dragover');
+            });
+            area.addEventListener('dragleave', () => {
+                area.classList.remove('dragover');
+            });
+            area.addEventListener('drop', (e) => {
+                e.preventDefault();
+                area.classList.remove('dragover');
+                const areaId = area.id.replace('upload-', '');
+                if (areaId.startsWith('objective-')) {
+                    // 客观题的两个上传区
+                    const subType = areaId.replace('objective-', '');
+                    handleObjectiveFiles(e.dataTransfer.files, subType);
+                } else {
+                    handleFiles(e.dataTransfer.files, areaId);
+                }
+            });
+        });
+
+        // 提交批改
+        async function submitGrade() {
+            const btn = document.getElementById('submit-btn');
+            const loading = document.getElementById('loading');
+            const resultArea = document.getElementById('result-area');
+            const errorMsg = document.getElementById('error-msg');
+
+            resultArea.classList.remove('show');
+            errorMsg.classList.remove('show');
+
+            // 获取文本
+            let text = '';
+            if (currentType === 'objective') {
+                // 客观题：检查两个文件
+                if (objectiveFiles.student.length === 0) {
+                    errorMsg.textContent = '请上传学生作业';
+                    errorMsg.classList.add('show');
+                    return;
+                }
+                if (objectiveFiles.answer.length === 0) {
+                    errorMsg.textContent = '请上传题目解析';
+                    errorMsg.classList.add('show');
+                    return;
+                }
+            } else if (currentType === 'summary') {
+                const original = document.getElementById('text-summary-original').value;
+                const student = document.getElementById('text-summary').value;
+                text = `【原文】\n${original}\n\n【学生概要】\n${student}`;
+            } else if (currentType === 'translation') {
+                const original = document.getElementById('text-translation-original').value;
+                const student = document.getElementById('text-translation').value;
+                text = `【原文】\n${original}\n\n【学生译文】\n${student}`;
+            } else {
+                text = document.getElementById('text-' + currentType).value;
+            }
+
+            const files = uploadedFiles[currentType] || [];
+
+            if (currentType !== 'objective') {
+                if (!text && files.length === 0) {
+                    errorMsg.textContent = '请输入文本或上传文件后再提交';
+                    errorMsg.classList.add('show');
+                    return;
+                }
+            }
+
+            if (currentType === 'custom' && !selectedTemplateId) {
+                errorMsg.textContent = '请先选择一个批改模板';
+                errorMsg.classList.add('show');
+                return;
+            }
+
+            btn.disabled = true;
+            loading.classList.add('show');
+
+            const formData = new FormData();
+            formData.append('type', currentType);
+            formData.append('text', text);
+
+            if (currentType === 'custom' && selectedTemplateId) {
+                formData.append('template_id', selectedTemplateId);
+            }
+
+            // 客观题：上传两类文件
+            if (currentType === 'objective') {
+                for (let f of objectiveFiles.student) {
+                    formData.append('student_files', f);
+                }
+                for (let f of objectiveFiles.answer) {
+                    formData.append('answer_file', f);
+                }
+            } else {
+                for (let f of files) {
+                    formData.append('files', f);
+                }
+            }
+
+            try {
+                const response = await fetch('/api/grade', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('result-score').textContent = data.score;
+                    document.getElementById('result-full-score').textContent = data.full_score;
+                    document.getElementById('download-link').href = data.download_url;
+                    document.getElementById('download-link').download = data.filename;
+                    
+                    // 显示应用的规则
+                    const rulesInfo = document.getElementById('result-rules-info');
+                    const rulesList = document.getElementById('result-rules-list');
+                    if (data.rules_applied && data.rules_applied > 0) {
+                        rulesList.textContent = data.rule_names.join('、');
+                        rulesInfo.style.display = 'block';
+                    } else {
+                        rulesInfo.style.display = 'none';
+                    }
+                    
+                    resultArea.classList.add('show');
+                    // 清空上传文件列表（源文件已自动删除）
+                    if (currentType === 'objective') {
+                        objectiveFiles.student = [];
+                        objectiveFiles.answer = [];
+                        document.getElementById('file-list-objective-student').innerHTML = '';
+                        document.getElementById('file-list-objective-answer').innerHTML = '';
+                    } else {
+                        uploadedFiles[currentType] = [];
+                        document.getElementById('file-list-' + currentType).innerHTML = '';
+                    }
+                } else {
+                    errorMsg.textContent = '批改失败：' + data.error;
+                    errorMsg.classList.add('show');
+                }
+            } catch (e) {
+                errorMsg.textContent = '网络错误，请重试';
+                errorMsg.classList.add('show');
+            } finally {
+                btn.disabled = false;
+                loading.classList.remove('show');
+            }
+        }
+
+        // ==================== AI配置 ====================
+
+        // 加载AI配置状态
+        async function loadAIConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                if (data.success) {
+                    // 如果已配置API Key，显示占位
+                    if (data.config.doubao_api_key_set) {
+                        document.getElementById('doubao-api-key').placeholder = '••••••••（已配置）';
+                    }
+                    // 填入模型名称
+                    if (data.config.doubao_model) {
+                        document.getElementById('doubao-model').value = data.config.doubao_model;
+                    }
+                }
+            } catch (e) {
+                console.error('加载配置失败', e);
+            }
+        }
+
+        // 打开设置弹窗
+        function openSettings() {
+            document.getElementById('settings-modal').classList.add('active');
+        }
+
+        // 关闭设置弹窗
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.remove('active');
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('settings-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'settings-modal') {
+                closeSettings();
+            }
+        });
+
+        // ==================== 历史记录 ====================
+
+        // 打开历史记录弹窗
+        function openHistory() {
+            document.getElementById('history-modal').classList.add('active');
+            loadHistory();
+        }
+
+        // 关闭历史记录弹窗
+        function closeHistory() {
+            document.getElementById('history-modal').classList.remove('active');
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('history-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'history-modal') {
+                closeHistory();
+            }
+        });
+
+        // 加载历史记录
+        async function loadHistory() {
+            const listEl = document.getElementById('history-list');
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                if (data.success && data.history && data.history.length > 0) {
+                    listEl.innerHTML = data.history.map(item => {
+                        const date = new Date(item.create_time * 1000);
+                        const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                        return `
+                            <div class="history-item">
+                                <div class="history-info">
+                                    <div class="history-title">${item.title}</div>
+                                    <div class="history-meta">
+                                        <span>📅 ${dateStr}</span>
+                                        <span class="history-score">${item.score}/${item.full_score}分</span>
+                                    </div>
+                                </div>
+                                <div class="history-actions">
+                                    <button class="history-btn-download" onclick="downloadHistoryFile('${item.filename}')">下载</button>
+                                    <button class="history-btn-delete" onclick="deleteHistoryRecord('${item.id}')">删除</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    listEl.innerHTML = '<div class="history-empty">暂无历史记录</div>';
+                }
+            } catch (e) {
+                listEl.innerHTML = '<div class="history-empty">加载失败，请重试</div>';
+            }
+        }
+
+        // 下载历史文件
+        function downloadHistoryFile(filename) {
+            window.open('/download/' + encodeURIComponent(filename), '_blank');
+        }
+
+        // 删除历史记录
+        async function deleteHistoryRecord(recordId) {
+            if (!confirm('确定要删除这条记录吗？文件也会被一起删除。')) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/history/' + recordId, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadHistory();
+                    showToast('删除成功', 'success');
+                } else {
+                    showToast('删除失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        // ==================== 模板管理 ====================
+
+        // 打开模板管理弹窗
+        function openTemplateManager() {
+            document.getElementById('template-manager-modal').classList.add('active');
+            loadAllTemplates();
+        }
+
+        // 关闭模板管理弹窗
+        function closeTemplateManager() {
+            document.getElementById('template-manager-modal').classList.remove('active');
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('template-manager-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'template-manager-modal') {
+                closeTemplateManager();
+            }
+        });
+
+        // 加载所有模板
+        async function loadAllTemplates() {
+            try {
+                const res = await fetch('/api/templates/all');
+                const data = await res.json();
+                if (data.success) {
+                    renderBuiltinTemplates(data.builtin || []);
+                    renderCustomTemplates(data.custom || []);
+                }
+            } catch (e) {
+                console.error('加载模板失败:', e);
+            }
+        }
+
+        // 渲染内置模板
+        function renderBuiltinTemplates(templates) {
+            const listEl = document.getElementById('builtin-template-list');
+            if (templates.length === 0) {
+                listEl.innerHTML = '<div class="template-empty">暂无内置模板</div>';
+                return;
+            }
+            listEl.innerHTML = templates.map(t => {
+                const overrideBadge = t.is_overridden ? '<span class="template-grid-tag overridden">已修改</span>' : '<span class="template-grid-tag builtin">内置</span>';
+                const resetBtn = t.is_overridden ? 
+                    `<button class="template-card-btn-reset" onclick="event.stopPropagation(); resetBuiltinTemplate('${t.key}')">恢复默认</button>` : '';
+                const hasFile = t.has_template_file ? '' : ' style="opacity:0.5;"';
+                return `
+                <div class="template-grid-card builtin">
+                    <div class="template-grid-card-body" onclick="previewTemplate('${t.id}')">
+                        <div class="template-grid-icon">📘</div>
+                        <div class="template-grid-name">${t.name}</div>
+                        <div class="template-grid-desc">${t.description || '暂无描述'}</div>
+                        <div class="template-grid-meta">
+                            ${overrideBadge}
+                            <span>满分${t.full_score}分</span>
+                        </div>
+                    </div>
+                    <div class="template-card-actions">
+                        ${resetBtn}
+                        <button class="template-card-btn-view" onclick="event.stopPropagation(); viewTemplateContent('${t.id}')"${hasFile}>查看模板</button>
+                        <button class="template-card-btn-edit" onclick="event.stopPropagation(); openEditBuiltinTemplate('${t.key}')">修改模板</button>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        // 渲染自定义模板
+        function renderCustomTemplates(templates) {
+            const listEl = document.getElementById('custom-template-list');
+            if (templates.length === 0) {
+                listEl.innerHTML = '<div class="template-empty">暂无自定义模板，可在"自定义"标签页创建</div>';
+                return;
+            }
+            listEl.innerHTML = templates.map(t => {
+                const hasFile = t.template_file ? '' : ' style="opacity:0.5;"';
+                return `
+                <div class="template-grid-card">
+                    <div class="template-grid-card-body" onclick="previewTemplate('${t.id}')">
+                        <div class="template-grid-icon">📋</div>
+                        <div class="template-grid-name">${t.name}</div>
+                        <div class="template-grid-desc">${t.description || '暂无描述'}</div>
+                        <div class="template-grid-meta">
+                            <span class="template-grid-tag">自定义</span>
+                            <span>使用${t.usage_count || 0}次</span>
+                        </div>
+                    </div>
+                    <div class="template-card-actions">
+                        <button class="template-card-btn-delete" onclick="event.stopPropagation(); deleteTemplateFromManager('${t.id}')">删除</button>
+                        <button class="template-card-btn-view" onclick="event.stopPropagation(); viewTemplateContent('${t.id}')"${hasFile}>查看模板</button>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        // 预览模板详情
+        async function previewTemplate(templateId) {
+            try {
+                const res = await fetch('/api/templates/detail/' + templateId);
+                const data = await res.json();
+                if (data.success) {
+                    showTemplatePreview(data.template);
+                } else {
+                    showToast('加载模板详情失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('加载失败', 'error');
+            }
+        }
+
+        // 显示模板预览
+        function showTemplatePreview(template) {
+            document.getElementById('preview-template-title').textContent = 
+                (template.type === 'builtin' ? '📘 ' : '📋 ') + template.name;
+
+            const typeLabel = template.type === 'builtin' ? '内置模板' : '自定义模板';
+            const typeClass = template.type === 'builtin' ? 'builtin' : '';
+
+            const dimsHtml = (template.scoring_dimensions || []).map(d => `
+                <div class="preview-dimension-item">
+                    <span class="preview-dim-name">${d.name}</span>
+                    <span class="preview-dim-score">满分 ${d.full_score} 分</span>
+                </div>
+            `).join('');
+
+            const content = `
+                <div class="preview-info">
+                    <div class="preview-row">
+                        <span class="preview-label">模板类型</span>
+                        <span class="preview-value"><span class="template-grid-tag ${typeClass}">${typeLabel}</span></span>
+                    </div>
+                    <div class="preview-row">
+                        <span class="preview-label">满分</span>
+                        <span class="preview-value">${template.full_score} 分</span>
+                    </div>
+                    <div class="preview-row">
+                        <span class="preview-label">评分维度</span>
+                        <span class="preview-value">${(template.scoring_dimensions || []).length} 个维度</span>
+                    </div>
+                </div>
+
+                <div class="preview-dimensions">
+                    <div class="preview-dimensions-title">📊 评分维度详情</div>
+                    ${dimsHtml}
+                </div>
+
+                <div class="preview-description">
+                    <strong>📝 模板说明</strong><br>
+                    ${template.description || '暂无描述'}
+                </div>
+            `;
+
+            document.getElementById('template-preview-content').innerHTML = content;
+            document.getElementById('template-preview-modal').classList.add('active');
+        }
+
+        // 关闭模板预览
+        function closeTemplatePreview() {
+            document.getElementById('template-preview-modal').classList.remove('active');
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('template-preview-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'template-preview-modal') {
+                closeTemplatePreview();
+            }
+        });
+
+        // 查看模板文件内容
+        async function viewTemplateContent(templateId) {
+            try {
+                const res = await fetch('/api/templates/' + templateId + '/content');
+                const data = await res.json();
+                if (data.success) {
+                    showTemplateContent(data);
+                } else {
+                    showToast('加载模板内容失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('加载失败', 'error');
+            }
+        }
+
+        // 显示模板内容
+        function showTemplateContent(data) {
+            document.getElementById('template-content-title').textContent = 
+                '📄 ' + (data.template_name || '模板') + ' - 格式预览';
+            
+            const body = document.getElementById('template-content-body');
+            
+            if (!data.has_file) {
+                body.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: #999;">
+                        <div style="font-size: 48px; margin-bottom: 12px;">📄</div>
+                        <div>${data.message || '该模板暂无上传的格式文件'}</div>
+                        <div style="font-size: 13px; margin-top: 8px;">
+                            您可以点击"修改模板"上传自定义模板文件
+                        </div>
+                    </div>
+                `;
+            } else if (data.file_type === 'image') {
+                body.innerHTML = `
+                    <div style="text-align: center;">
+                        <img src="data:image/jpeg;base64,${data.content}" 
+                             style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                             alt="模板图片">
+                    </div>
+                `;
+            } else if (data.file_type === 'pdf_image') {
+                // PDF多页图片预览
+                const pages = (data.content || '').split('|||').filter(p => p);
+                const pagesHtml = pages.map((pageData, index) => `
+                    <div style="margin-bottom: 16px; text-align: center; position: relative;">
+                        <div style="display: inline-block; position: relative;">
+                            <img src="data:image/jpeg;base64,${pageData}" 
+                                 style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); display: block;"
+                                 alt="第${index + 1}页">
+                            <div style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.6); color: white; padding: 2px 10px; border-radius: 12px; font-size: 12px;">
+                                第 ${index + 1} 页 / 共 ${pages.length} 页
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                body.innerHTML = `
+                    <div style="padding: 4px 0;">
+                        ${pagesHtml}
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #999; text-align: right;">
+                        共 ${pages.length} 页，向下滚动查看全部
+                    </div>
+                `;
+            } else {
+                // 文本/docx类型，按行显示
+                const lines = (data.content || '').split('\n');
+                const contentHtml = lines.map(line => {
+                    const escaped = escapeHtml(line);
+                    if (escaped.trim() === '') {
+                        return '<div style="height: 8px;"></div>';
+                    }
+                    return `<div style="padding: 2px 0; line-height: 1.8;">${escaped}</div>`;
+                }).join('');
+                
+                body.innerHTML = `
+                    <div style="background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #eee; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; color: #333; white-space: pre-wrap; word-break: break-word;">
+                        ${contentHtml}
+                    </div>
+                    <div style="margin-top: 12px; font-size: 12px; color: #999; text-align: right;">
+                        共 ${lines.length} 行
+                    </div>
+                `;
+            }
+            
+            document.getElementById('template-content-modal').classList.add('active');
+        }
+
+        // 关闭模板内容预览
+        function closeTemplateContent() {
+            document.getElementById('template-content-modal').classList.remove('active');
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('template-content-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'template-content-modal') {
+                closeTemplateContent();
+            }
+        });
+
+        // ==================== 评分标准管理 ====================
+
+        // 加载评分标准信息
+        async function loadGradingStandard(gradeType) {
+            try {
+                const res = await fetch('/api/grading-standards/' + gradeType);
+                const data = await res.json();
+                if (data.success && data.info) {
+                    updateGradingStandardUI(gradeType, data.info);
+                }
+            } catch (e) {
+                console.error('加载评分标准失败:', e);
+            }
+        }
+
+        // 更新评分标准UI显示
+        function updateGradingStandardUI(gradeType, info) {
+            const nameEl = document.getElementById('standard-name-' + gradeType);
+            const descEl = document.getElementById('standard-desc-' + gradeType);
+            const badgeEl = document.getElementById('standard-badge-' + gradeType);
+            
+            if (nameEl) nameEl.textContent = info.name || '评分标准';
+            if (descEl) {
+                descEl.textContent = info.is_default ? '系统默认评分标准' : '已自定义评分标准';
+            }
+            if (badgeEl) {
+                if (info.is_default) {
+                    badgeEl.textContent = '默认';
+                    badgeEl.style.background = '#e0e7ff';
+                    badgeEl.style.color = '#4338ca';
+                } else {
+                    badgeEl.textContent = '已自定义';
+                    badgeEl.style.background = '#dcfce7';
+                    badgeEl.style.color = '#15803d';
+                }
+            }
+        }
+
+        // 查看评分标准内容
+        async function viewGradingStandard(gradeType) {
+            try {
+                const res = await fetch('/api/grading-standards/' + gradeType + '/content');
+                const data = await res.json();
+                if (data.success) {
+                    // 复用模板内容预览弹窗
+                    showTemplateContent({
+                        template_name: data.name || '评分标准',
+                        has_file: data.has_file,
+                        content: data.content,
+                        file_type: data.file_type,
+                        message: data.message
+                    });
+                } else {
+                    showToast('加载评分标准失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('加载失败', 'error');
+            }
+        }
+
+        // 上传评分标准文件
+        async function uploadGradingStandard(gradeType, file) {
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('standard_file', file);
+            
+            try {
+                const res = await fetch('/api/grading-standards/' + gradeType + '/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('评分标准已更新', 'success');
+                    updateGradingStandardUI(gradeType, data.info);
+                } else {
+                    showToast('上传失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('上传失败', 'error');
+            }
+            
+            // 清空input，允许重复上传同一文件
+            document.getElementById('standard-file-' + gradeType).value = '';
+        }
+
+        // ==================== 修改内置模板 ====================
+
+        let currentEditBuiltinKey = null;
+
+        // 打开修改内置模板弹窗
+        function openEditBuiltinTemplate(templateKey) {
+            currentEditBuiltinKey = templateKey;
+
+            // 查找模板信息填充表单
+            fetch('/api/templates/all').then(res => res.json()).then(data => {
+                if (data.success) {
+                    const template = data.builtin.find(t => t.key === templateKey);
+                    if (template) {
+                        document.getElementById('edit-builtin-subtitle').textContent = 
+                            `正在修改：${template.name}`;
+                        document.getElementById('edit-template-name').value = template.name;
+                        document.getElementById('edit-template-score').value = template.full_score;
+                        document.getElementById('edit-template-desc').value = template.description || '';
+                        document.getElementById('edit-template-file-name').style.display = 'none';
+                        document.getElementById('edit-template-file-name').textContent = '';
+                        document.getElementById('edit-template-file').value = '';
+                    }
+                }
+            });
+
+            document.getElementById('edit-builtin-template-modal').classList.add('active');
+        }
+
+        // 关闭修改内置模板弹窗
+        function closeEditBuiltinTemplate() {
+            document.getElementById('edit-builtin-template-modal').classList.remove('active');
+            currentEditBuiltinKey = null;
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('edit-builtin-template-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'edit-builtin-template-modal') {
+                closeEditBuiltinTemplate();
+            }
+        });
+
+        // 模板文件选择回调
+        function onEditTemplateFileChange(input) {
+            const nameEl = document.getElementById('edit-template-file-name');
+            if (input.files.length > 0) {
+                nameEl.textContent = '📎 ' + input.files[0].name;
+                nameEl.style.display = 'block';
+            } else {
+                nameEl.style.display = 'none';
+            }
+        }
+
+        // 提交修改内置模板
+        async function submitEditBuiltinTemplate() {
+            const name = document.getElementById('edit-template-name').value.trim();
+            const fullScore = document.getElementById('edit-template-score').value.trim();
+            const description = document.getElementById('edit-template-desc').value.trim();
+            const templateFile = document.getElementById('edit-template-file').files[0];
+
+            if (!name) {
+                showToast('请输入模板名称', 'error');
+                return;
+            }
+            if (!fullScore) {
+                showToast('请输入满分', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('full_score', parseInt(fullScore));
+            formData.append('description', description);
+            formData.append('scoring_dimensions', JSON.stringify([
+                {name: '内容', full_score: Math.floor(parseInt(fullScore) * 0.4)},
+                {name: '语言', full_score: Math.floor(parseInt(fullScore) * 0.4)},
+                {name: '组织结构', full_score: Math.floor(parseInt(fullScore) * 0.2)}
+            ]));
+            if (templateFile) {
+                formData.append('template_file', templateFile);
+            }
+
+            try {
+                const res = await fetch('/api/templates/builtin/' + currentEditBuiltinKey + '/override', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('模板修改成功', 'success');
+                    closeEditBuiltinTemplate();
+                    loadAllTemplates();
+                } else {
+                    showToast('修改失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('修改失败', 'error');
+            }
+        }
+
+        // 恢复内置模板为默认
+        async function resetBuiltinTemplate(templateKey) {
+            if (!confirm('确定要恢复为默认模板吗？您的自定义修改将会丢失。')) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/templates/builtin/' + templateKey + '/reset', {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('已恢复为默认模板', 'success');
+                    loadAllTemplates();
+                } else {
+                    showToast('恢复失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('恢复失败', 'error');
+            }
+        }
+
+        // 从模板管理中删除自定义模板
+        async function deleteTemplateFromManager(templateId) {
+            if (!confirm('确定要删除这个模板吗？删除后无法恢复。')) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/templates/' + templateId, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('删除成功', 'success');
+                    loadAllTemplates();
+                    // 同步更新自定义标签页的模板列表
+                    loadTemplates();
+                } else {
+                    showToast('删除失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        // ==================== 规则管理 ====================
+
+        let currentEditingRuleId = null;
+        let rulesCache = [];
+
+        const typeNameMap = {
+            'all': '全部类型',
+            'essay_zhongkao': '中考作文',
+            'essay_gaokao': '高考作文',
+            'essay_ielts': '雅思作文',
+            'summary': '概要写作',
+            'translation': '翻译',
+            'objective': '客观题',
+            'custom': '自定义模板'
+        };
+
+        function openRuleManager() {
+            document.getElementById('rule-manager-modal').classList.add('active');
+            loadRules();
+        }
+
+        function closeRuleManager() {
+            document.getElementById('rule-manager-modal').classList.remove('active');
+        }
+
+        document.getElementById('rule-manager-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'rule-manager-modal') {
+                closeRuleManager();
+            }
+        });
+
+        async function loadRules() {
+            try {
+                const res = await fetch('/api/rules');
+                const data = await res.json();
+                if (data.success) {
+                    rulesCache = data.rules;
+                    renderRuleList(data.rules);
+                }
+            } catch (e) {
+                showToast('加载规则失败', 'error');
+            }
+        }
+
+        function renderRuleList(rules) {
+            const container = document.getElementById('rule-list');
+            if (!rules || rules.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 30px; text-align: center; color: #999;">
+                        <div style="font-size: 36px; margin-bottom: 8px;">📝</div>
+                        <div>暂无自定义规则</div>
+                        <div style="font-size: 12px; margin-top: 4px;">点击"添加规则"创建您的第一条批改规则</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = rules.map(rule => `
+                <div class="rule-card ${rule.enabled ? 'enabled' : 'disabled'}" data-id="${rule.id}">
+                    <div class="rule-card-header">
+                        <div class="rule-card-name">
+                            <span class="rule-card-tag">${rule.enabled ? '已启用' : '已禁用'}</span>
+                            ${escapeHtml(rule.name)}
+                        </div>
+                        <div class="rule-card-actions">
+                            <button class="rule-card-btn" onclick="editRule('${rule.id}')" title="编辑">✏️</button>
+                            <button class="rule-card-btn delete" onclick="deleteRule('${rule.id}')" title="删除">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="rule-card-content">${escapeHtml(rule.content)}</div>
+                    <div class="rule-card-footer">
+                        <span class="rule-card-type">适用：${typeNameMap[rule.applies_to] || rule.applies_to}</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <button class="rule-card-expand" onclick="toggleRuleExpand(this)">展开全文</button>
+                            <div class="rule-card-toggle ${rule.enabled ? 'active' : ''}" onclick="toggleRule('${rule.id}')"></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleRuleExpand(btn) {
+            const card = btn.closest('.rule-card');
+            const isExpanded = card.classList.toggle('expanded');
+            btn.textContent = isExpanded ? '收起' : '展开全文';
+        }
+
+        function openCreateRule() {
+            currentEditingRuleId = null;
+            document.getElementById('rule-edit-title').textContent = '✨ 添加批改规则';
+            document.getElementById('rule-name-input').value = '';
+            document.getElementById('rule-content-input').value = '';
+            document.getElementById('rule-applies-select').value = 'all';
+            document.getElementById('rule-edit-modal').classList.add('active');
+        }
+
+        function editRule(ruleId) {
+            const rule = rulesCache.find(r => r.id === ruleId);
+            if (!rule) return;
+            currentEditingRuleId = ruleId;
+            document.getElementById('rule-edit-title').textContent = '✏️ 编辑批改规则';
+            document.getElementById('rule-name-input').value = rule.name;
+            document.getElementById('rule-content-input').value = rule.content;
+            document.getElementById('rule-applies-select').value = rule.applies_to;
+            document.getElementById('rule-edit-modal').classList.add('active');
+        }
+
+        function closeRuleEdit() {
+            document.getElementById('rule-edit-modal').classList.remove('active');
+            currentEditingRuleId = null;
+        }
+
+        document.getElementById('rule-edit-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'rule-edit-modal') {
+                closeRuleEdit();
+            }
+        });
+
+        async function submitRule() {
+            const name = document.getElementById('rule-name-input').value.trim();
+            const content = document.getElementById('rule-content-input').value.trim();
+            const applies_to = document.getElementById('rule-applies-select').value;
+
+            if (!name) {
+                showToast('请输入规则名称', 'error');
+                return;
+            }
+            if (!content) {
+                showToast('请输入规则内容', 'error');
+                return;
+            }
+
+            try {
+                let url, method;
+                if (currentEditingRuleId) {
+                    url = '/api/rules/' + currentEditingRuleId;
+                    method = 'PUT';
+                } else {
+                    url = '/api/rules';
+                    method = 'POST';
+                }
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        content: content,
+                        applies_to: applies_to
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(currentEditingRuleId ? '修改成功' : '添加成功', 'success');
+                    closeRuleEdit();
+                    loadRules();
+                } else {
+                    showToast('操作失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('操作失败', 'error');
+            }
+        }
+
+        async function toggleRule(ruleId) {
+            try {
+                const res = await fetch('/api/rules/' + ruleId + '/toggle', {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadRules();
+                    showToast(data.enabled ? '已启用' : '已禁用', 'success');
+                } else {
+                    showToast('操作失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('操作失败', 'error');
+            }
+        }
+
+        async function deleteRule(ruleId) {
+            if (!confirm('确定要删除这条规则吗？')) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/rules/' + ruleId, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('删除成功', 'success');
+                    loadRules();
+                } else {
+                    showToast('删除失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        // 保存配置
+        async function saveConfig() {
+            const apiKey = document.getElementById('doubao-api-key').value.trim();
+            const model = document.getElementById('doubao-model').value.trim();
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        doubao_api_key: apiKey,
+                        doubao_model: model
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('配置已保存', 'success');
+                    closeSettings();
+                } else {
+                    showToast('保存失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('网络错误', 'error');
+            }
+        }
+
+        // 测试配置
+        async function testConfig() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '测试中...';
+            btn.disabled = true;
+
+            // 先保存再测试
+            const apiKey = document.getElementById('doubao-api-key').value.trim();
+            const model = document.getElementById('doubao-model').value.trim();
+
+            if (!apiKey) {
+                showToast('请先填写API Key', 'error');
+                btn.textContent = originalText;
+                btn.disabled = false;
+                return;
+            }
+
+            try {
+                // 先保存
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        doubao_api_key: apiKey,
+                        doubao_model: model
+                    })
+                });
+
+                // 再测试
+                const res = await fetch('/api/config/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('连接成功！' + data.message, 'success');
+                } else {
+                    showToast('连接失败：' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('网络错误：' + e.message, 'error');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Toast提示
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
