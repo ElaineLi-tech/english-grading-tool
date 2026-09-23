@@ -1,20 +1,9 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxDuration": 300,
-        "includeFiles": [
-          "app.py",
-          "templates/**",
-          "templates_user/config.example.json",
-          "requirements.txt"
-        ]
-      }
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300
     }
-  ],
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]

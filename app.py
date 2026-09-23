@@ -17,7 +17,10 @@ import re
 import datetime
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
+# 项目根目录（app.py 所在目录）
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 
 # Vercel 环境检测：无服务器函数文件系统只读，使用 /tmp 目录
 IS_VERCEL = os.environ.get('VERCEL', '') == '1' or os.environ.get('VERCEL_ENV') is not None
@@ -28,7 +31,6 @@ if IS_VERCEL:
     app.config['OUTPUT_FOLDER'] = '/tmp/outputs'
     app.config['TEMPLATE_FOLDER'] = '/tmp/templates_user'
     # 内置模板和配置文件随代码部署，在项目根目录
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     app.config['STATIC_TEMPLATE_FOLDER'] = os.path.join(BASE_DIR, 'templates_user')
 else:
     # 本地环境：使用相对路径
