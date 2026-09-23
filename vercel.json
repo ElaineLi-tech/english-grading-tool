@@ -5,11 +5,17 @@
       "src": "api/index.py",
       "use": "@vercel/python",
       "config": {
-        "maxDuration": 300
+        "maxDuration": 300,
+        "includeFiles": [
+          "app.py",
+          "templates/**",
+          "templates_user/config.example.json",
+          "requirements.txt"
+        ]
       }
     }
   ],
-  "routes": [
-    { "src": "/(.*)", "dest": "api/index.py" }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
   ]
 }
