@@ -32,12 +32,16 @@ if IS_VERCEL:
     app.config['TEMPLATE_FOLDER'] = '/tmp/templates_user'
     # 内置模板和配置文件随代码部署，在项目根目录
     app.config['STATIC_TEMPLATE_FOLDER'] = os.path.join(BASE_DIR, 'templates_user')
+    # 内置模板文件目录（只读，随代码部署）
+    app.config['BUILTIN_TEMPLATE_FILES_DIR'] = os.path.join(BASE_DIR, 'builtin_templates')
 else:
     # 本地环境：使用相对路径
     app.config['UPLOAD_FOLDER'] = 'uploads'
     app.config['OUTPUT_FOLDER'] = 'outputs'
     app.config['TEMPLATE_FOLDER'] = 'templates_user'
     app.config['STATIC_TEMPLATE_FOLDER'] = 'templates_user'
+    # 内置模板文件目录
+    app.config['BUILTIN_TEMPLATE_FILES_DIR'] = os.path.join(BASE_DIR, 'builtin_templates')
 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 
@@ -93,6 +97,38 @@ def get_effective_template(grade_type):
     result = builtin.copy()
     result['is_overridden'] = False
     return result
+
+
+def get_builtin_template_file_path(template_file):
+    """获取内置模板文件的完整路径"""
+    if not template_file:
+        return None
+    builtin_dir = app.config.get('BUILTIN_TEMPLATE_FILES_DIR', '')
+    if builtin_dir:
+        path = os.path.join(builtin_dir, template_file)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def get_template_file_path(template_file, is_overridden=False):
+    """获取模板文件的完整路径（优先用户覆盖版本，其次内置版本）"""
+    if not template_file:
+        return None
+    # 用户覆盖的文件在 TEMPLATE_FOLDER
+    if is_overridden:
+        user_path = os.path.join(app.config['TEMPLATE_FOLDER'], template_file)
+        if os.path.exists(user_path):
+            return user_path
+    # 内置模板文件在 BUILTIN_TEMPLATE_FILES_DIR
+    builtin_path = get_builtin_template_file_path(template_file)
+    if builtin_path:
+        return builtin_path
+    # 兜底：在 TEMPLATE_FOLDER 中找
+    user_path = os.path.join(app.config['TEMPLATE_FOLDER'], template_file)
+    if os.path.exists(user_path):
+        return user_path
+    return None
 
 # ==================== 自定义规则系统 ====================
 
@@ -303,10 +339,11 @@ def call_doubao_chat(input_list, api_key, model_name='doubao-seed-2-0-mini-26042
         }
 
 
-def build_grading_prompt(student_text, template, has_image=False, custom_rules=None, grading_standard=None):
+def build_grading_prompt(student_text, template, has_image=False, custom_rules=None, grading_standard=None, template_folder=None):
     """构建批改prompt，让AI按指定模板格式返回JSON
     custom_rules: 用户自定义规则列表，每条规则包含name和content
     grading_standard: 评分标准文本内容，用于指导AI评分
+    template_folder: 模板文件夹路径，用于读取模板文件内容
     """
     
     scoring_dims = template.get('scoring_dimensions', [
@@ -336,6 +373,22 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
             standard_text = standard_text[:3000] + '\n...（内容过长，已截取核心部分）'
         standard_section = f"\n【评分标准参考】\n请严格按照以下评分标准进行评分和点评，评分标准是你打分的核心依据：\n{standard_text}\n"
     
+    # 构建格式模板部分
+    format_template_section = ''
+    template_file = template.get('template_file')
+    is_overridden = template.get('is_overridden', False)
+    if template_file and template_folder:
+        template_path = get_template_file_path(template_file, is_overridden)
+        if template_path and os.path.exists(template_path):
+            ext = os.path.splitext(template_path)[1].lower()
+            if ext in {'.docx', '.doc'}:
+                template_content = extract_text_from_docx(template_path)
+                if template_content:
+                    # 限制长度
+                    if len(template_content) > 2000:
+                        template_content = template_content[:2000] + '\n...（内容过长，已截取核心部分）'
+                    format_template_section = f"\n【批改格式参考模板】\n以下是批改结果的格式模板范例，请严格按照这个模板的结构、用语习惯和排版方式来组织你的批改结果：\n{template_content}\n"
+    
     prompt = f"""你是一位专业的英语作文批改老师，请按照以下要求批改学生作文。
 
 【批改模板】
@@ -344,6 +397,7 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
 满分：{template.get('full_score', 20)}分
 评分维度：
 {dims_desc}
+{format_template_section}
 {rules_section}
 {standard_section}
 【学生作文】
@@ -592,7 +646,7 @@ def grade_with_doubao(student_text, template, image_paths=None, api_key='', mode
         prompt_text = f"（共{image_count}张图片，请识别所有图片中的文字内容并合并后进行批改）"
     else:
         prompt_text = student_text or "（请识别图片中的学生作文并批改）"
-    prompt = build_grading_prompt(prompt_text, template, has_image=bool(image_paths), custom_rules=custom_rules, grading_standard=grading_standard)
+    prompt = build_grading_prompt(prompt_text, template, has_image=bool(image_paths), custom_rules=custom_rules, grading_standard=grading_standard, template_folder=app.config['TEMPLATE_FOLDER'])
     content.append({
         "type": "input_text",
         "text": prompt
@@ -672,7 +726,10 @@ BUILTIN_TEMPLATES = {
             {'name': '语言', 'full_score': 10},
             {'name': '组织结构', 'full_score': 5}
         ],
-        'style': 'gaokao'
+        'style': 'gaokao',
+        'template_file': 'gaokao_essay_template.docx',
+        'has_model_essay': True,
+        'has_good_sentences': True
     },
     'essay_ielts': {
         'id': 'builtin_ielts',
@@ -1606,7 +1663,7 @@ def api_templates_all():
                 'type': 'builtin',
                 'style': display_t.get('style', t.get('style', 'default')),
                 'is_overridden': is_overridden,
-                'has_template_file': is_overridden and overrides[key].get('template_file') is not None,
+                'has_template_file': (is_overridden and overrides[key].get('template_file') is not None) or (t.get('template_file') is not None),
             })
         # 自定义模板
         custom = load_templates()
@@ -1666,14 +1723,24 @@ def api_template_content(template_id):
         overrides = load_builtin_overrides()
         template_file = None
         template_name = ''
+        is_overridden = False
+        builtin_template_file = None
         
         # 先查找内置模板（可能有用户上传的覆盖文件）
         for key, t in BUILTIN_TEMPLATES.items():
             if t['id'] == template_id:
                 template_name = t['name']
+                builtin_template_file = t.get('template_file')
                 if key in overrides:
-                    template_file = overrides[key].get('template_file')
+                    override_file = overrides[key].get('template_file')
+                    if override_file:
+                        template_file = override_file
+                        is_overridden = True
                 break
+        
+        # 如果用户没有覆盖，使用内置模板文件
+        if not template_file and builtin_template_file:
+            template_file = builtin_template_file
         
         # 再查找自定义模板
         if not template_file:
@@ -1692,8 +1759,9 @@ def api_template_content(template_id):
                 'message': '该模板暂无上传的格式文件'
             })
         
-        template_path = os.path.join(app.config['TEMPLATE_FOLDER'], template_file)
-        if not os.path.exists(template_path):
+        # 查找模板文件路径（优先用户覆盖，其次内置）
+        template_path = get_template_file_path(template_file, is_overridden)
+        if not template_path or not os.path.exists(template_path):
             return jsonify({
                 'success': True,
                 'has_file': False,
