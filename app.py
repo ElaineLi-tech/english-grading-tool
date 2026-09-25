@@ -389,6 +389,22 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
                         template_content = template_content[:2000] + '\n...（内容过长，已截取核心部分）'
                     format_template_section = f"\n【批改格式参考模板】\n以下是批改结果的格式模板范例，请严格按照这个模板的结构、用语习惯和排版方式来组织你的批改结果：\n{template_content}\n"
     
+    # 根据模板风格调整输出要求
+    style = template.get('style', 'default')
+    
+    # 高考风格：需要改进建议
+    improvement_field = ''
+    if style == 'gaokao':
+        improvement_field = '  "improvement_suggestion": "综合改进建议：针对学生的问题，给出具体的、可操作的改进建议（如错题本、练习重点等）",\n'
+    
+    # 范文字段说明
+    if style == 'gaokao':
+        model_essay_desc = '"基于原文的修改范文（在学生原文基础上改写提升，所有修改/提升的部分请用**两个星号**包裹标记，例如：**improved** 表示此处有修改。结构更完整、用词更丰富、句式更多样）"'
+        good_sentences_field = ''
+    else:
+        model_essay_desc = '"参考范文（在学生原文基础上改写提升，所有修改/提升的部分请用**两个星号**包裹标记，例如：**improved** 表示此处有修改。结构更完整、用词更丰富、句式更多样）\\n\\n【好词好句学习】\\n1. 好词/好句型 - 解释\\n2. ..."'
+        good_sentences_field = '  "good_sentences": [\n    "好词1 - 释义",\n    "好词2 - 释义"\n  ],\n'
+    
     prompt = f"""你是一位专业的英语作文批改老师，请按照以下要求批改学生作文。
 
 【批改模板】
@@ -428,11 +444,7 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
       "evaluation": "该维度的详细评价"
     }}
   ],
-  "model_essay": "参考范文（在学生原文基础上改写提升，所有修改/提升的部分请用**两个星号**包裹标记，例如：**improved** 表示此处有修改。结构更完整、用词更丰富、句式更多样）\n\n【好词好句学习】\n1. 好词/好句型 - 解释\n2. ...",
-  "good_sentences": [
-    "好词1 - 释义",
-    "好词2 - 释义"
-  ]
+{improvement_field}{good_sentences_field}  "model_essay": {model_essay_desc}
 }}
 
 注意：
@@ -1115,11 +1127,30 @@ def diff_and_bold_model_essay(student_text, model_essay):
     return ''.join(result_parts)
 
 
-def generate_essay_doc(result, output_path, title, uploaded_images=None):
+def generate_essay_doc(result, output_path, title, uploaded_images=None, template=None):
     """生成作文批改Word文档
     uploaded_images: 上传的学生作业图片路径列表，用于在原文部分展示手写原图
+    template: 批改模板，用于确定文档格式风格
     """
     doc = create_doc_with_title(title, f"满分：{result['full_score']}分  得分：{result['score']}分")
+    
+    # 获取模板风格
+    style = 'default'
+    has_model_essay = True
+    has_good_sentences = False
+    if template:
+        style = template.get('style', 'default')
+        has_model_essay = template.get('has_model_essay', True)
+        has_good_sentences = template.get('has_good_sentences', False)
+    
+    # 高考风格：题目要求
+    if style == 'gaokao':
+        topic_text = result.get('topic', '')
+        if topic_text:
+            add_para(doc, [('题目要求', True, BLUE)], size=14, space_before=6, space_after=4)
+            for line in topic_text.split('\n'):
+                if line.strip():
+                    add_para(doc, [(line.strip(), False, BLACK)], size=12, indent=24, space_after=2)
 
     # 原文
     add_para(doc, [('原文', True, BLUE)], size=14, space_before=6, space_after=4)
@@ -1212,27 +1243,57 @@ def generate_essay_doc(result, output_path, title, uploaded_images=None):
         add_para(doc, [('1. 内容：' + result['content_eval'], False, BLACK)], size=12, space_after=4, indent=24)
         add_para(doc, [('2. 语言：' + result['language_eval'], False, BLACK)], size=12, space_after=4, indent=24)
         add_para(doc, [('3. 组织结构：' + result['org_eval'], False, BLACK)], size=12, space_after=4, indent=24)
+    
+    # 高考风格：改进建议
+    if style == 'gaokao':
+        improvement = result.get('improvement_suggestion', '')
+        if not improvement:
+            # 从维度评价中提取改进建议
+            dim_evals = []
+            if 'scoring_dimensions' in result:
+                for dim in result['scoring_dimensions']:
+                    ev = dim.get('evaluation', '')
+                    if ev:
+                        dim_evals.append(ev)
+            if dim_evals:
+                improvement = '继续加强语言准确性，注意拼写、语法和搭配；丰富句式结构，提升表达的多样性。'
+        if improvement:
+            add_para(doc, [('改进建议：', False, RED), (improvement, False, BLACK)], size=12, space_after=4, indent=24)
 
     # 范文 — 修改部分用黑色粗体标出
-    add_para(doc, [('范文参考', True, BLUE)], size=14, space_before=10, space_after=4)
-    model_essay = result.get('model_essay', '')
-    if model_essay:
-        # 如果范文中没有**粗体标记，自动对比原文找出修改处并加粗
-        student_text = result.get('student_text', '')
-        if '**' not in model_essay and student_text:
-            model_essay = diff_and_bold_model_essay(student_text, model_essay)
+    if has_model_essay:
+        # 高考风格：范文标题不同
+        if style == 'gaokao':
+            model_title = '基于原文的修改范文'
+        else:
+            model_title = '范文参考'
+        add_para(doc, [(model_title, True, BLUE)], size=14, space_before=10, space_after=4)
+        model_essay = result.get('model_essay', '')
+        if model_essay:
+            # 如果范文中没有**粗体标记，自动对比原文找出修改处并加粗
+            student_text = result.get('student_text', '')
+            if '**' not in model_essay and student_text:
+                model_essay = diff_and_bold_model_essay(student_text, model_essay)
+            
+            # 按段落分割
+            paragraphs = model_essay.split('\n')
+            for para_text in paragraphs:
+                if para_text.strip():
+                    # 解析**粗体**标记
+                    bold_parts = parse_bold_markdown(para_text)
+                    runs = [(text, bold, BLACK) for text, bold in bold_parts]
+                    add_para(doc, runs, size=12, indent=24)
+                else:
+                    # 空行
+                    add_para(doc, [('', False, BLACK)], size=6, indent=24)
         
-        # 按段落分割
-        paragraphs = model_essay.split('\n')
-        for para_text in paragraphs:
-            if para_text.strip():
-                # 解析**粗体**标记
-                bold_parts = parse_bold_markdown(para_text)
-                runs = [(text, bold, BLACK) for text, bold in bold_parts]
-                add_para(doc, runs, size=12, indent=24)
-            else:
-                # 空行
-                add_para(doc, [('', False, BLACK)], size=6, indent=24)
+        # 好词好句（仅中考等模板有）
+        if has_good_sentences:
+            good_sentences = result.get('good_sentences', [])
+            if good_sentences and len(good_sentences) > 0:
+                add_para(doc, [('好词好句学习', True, BLUE)], size=14, space_before=10, space_after=4)
+                for i, gs in enumerate(good_sentences, 1):
+                    add_para(doc, [(f"{i}. {gs}", False, BLACK)], size=12, space_after=2, indent=24)
 
     doc.save(output_path)
 
@@ -2369,7 +2430,7 @@ def api_grade():
             counter += 1
         
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
-        generate_essay_doc(result, output_path, title, uploaded_images)
+        generate_essay_doc(result, output_path, title, uploaded_images, template=template)
 
         # 保存历史记录
         history_record = {
