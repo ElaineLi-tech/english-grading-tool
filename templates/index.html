@@ -335,6 +335,106 @@
             display: block;
         }
 
+        /* 客观题二级Tab */
+        .objective-subtabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .obj-subtab {
+            padding: 8px 18px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #4b5563;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .obj-subtab:hover {
+            background: #e5e7eb;
+        }
+        .obj-subtab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            font-weight: 600;
+        }
+        .obj-subcontent {
+            display: none;
+        }
+        .obj-subcontent.active {
+            display: block;
+        }
+        .input-hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            background: #f9fafb;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        .obj-wrong-input {
+            width: 100%;
+            min-height: 160px;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        .obj-wrong-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .obj-answer-upload {
+            min-height: 80px;
+        }
+
+        /* 概要写作模式切换 */
+        .summary-mode-switch {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .mode-option {
+            flex: 1;
+            padding: 16px;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .mode-option:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .mode-option.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+        }
+        .mode-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+        .mode-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .mode-desc {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
         .section-title {
             font-size: 18px;
             font-weight: 600;
@@ -1572,6 +1672,20 @@
 
                 <!-- 概要写作 -->
                 <div class="tab-content" id="tab-summary">
+                    <!-- 模式切换 -->
+                    <div class="summary-mode-switch">
+                        <div class="mode-option active" data-mode="grading" onclick="switchSummaryMode(this)">
+                            <div class="mode-icon">✏️</div>
+                            <div class="mode-title">作文批改</div>
+                            <div class="mode-desc">批改学生的概要作文</div>
+                        </div>
+                        <div class="mode-option" data-mode="handout" onclick="switchSummaryMode(this)">
+                            <div class="mode-icon">📚</div>
+                            <div class="mode-title">生成讲义</div>
+                            <div class="mode-desc">根据原文生成讲解讲义</div>
+                        </div>
+                    </div>
+
                     <div class="features">
                         <div class="feature-card">
                             <div class="feature-icon">🎯</div>
@@ -1590,25 +1704,25 @@
                         </div>
                     </div>
 
-                    <div class="input-area">
-                        <div class="section-title">输入原文（可选）</div>
-                        <textarea id="text-summary-original" placeholder="请粘贴原文内容（可选，用于更精准的批改）..." style="min-height:100px"></textarea>
+                    <div class="input-area" id="summary-topic-input">
+                        <div class="section-title">输入原文</div>
+                        <textarea id="text-summary-original" placeholder="请粘贴原文内容..." style="min-height:100px"></textarea>
                     </div>
 
-                    <div class="input-area">
+                    <div class="input-area" id="summary-student-input">
                         <div class="section-title">输入学生概要</div>
                         <textarea id="text-summary" placeholder="请粘贴学生写的概要内容..."></textarea>
                     </div>
 
-                    <div class="divider">或</div>
+                    <div class="divider" id="summary-divider">或</div>
 
                     <div class="upload-area" id="upload-summary" onclick="document.getElementById('file-summary').click()">
                         <div class="upload-icon">📁</div>
-                        <div class="upload-text">点击上传或拖拽文件到此处</div>
-                        <div class="upload-hint">支持多张图片、PDF、Word文档</div>
+                        <div class="upload-text" id="summary-upload-text">点击上传或拖拽文件到此处</div>
+                        <div class="upload-hint" id="summary-upload-hint">支持多张图片、PDF、Word文档</div>
                         <input type="file" id="file-summary" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'summary')">
                     </div>
-                    <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 6px;">
+                    <div id="summary-upload-tip" style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 6px;">
                         💡 可同时上传原文图片 + 学生答案图片，AI会自动识别合并后批改
                     </div>
                     <div class="file-list" id="file-list-summary"></div>
@@ -1679,41 +1793,93 @@
 
                 <!-- 客观题 -->
                 <div class="tab-content" id="tab-objective">
-                    <div class="features">
-                        <div class="feature-card">
-                            <div class="feature-icon">✅</div>
-                            <div class="feature-title">自动判题</div>
-                            <div class="feature-desc">对照答案找错题</div>
-                        </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">📊</div>
-                            <div class="feature-title">错题分析</div>
-                            <div class="feature-desc">详细解析错因</div>
-                        </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">📄</div>
-                            <div class="feature-title">原卷标注</div>
-                            <div class="feature-desc">原题+错题分析</div>
-                        </div>
+                    <div class="objective-subtabs">
+                        <div class="obj-subtab active" data-subtype="objective_reading" onclick="switchObjectiveSubtab(this)">阅读理解</div>
+                        <div class="obj-subtab" data-subtype="objective_six_choose_four" onclick="switchObjectiveSubtab(this)">六选四</div>
+                        <div class="obj-subtab" data-subtype="objective_cloze" onclick="switchObjectiveSubtab(this)">完形填空</div>
+                        <div class="obj-subtab" data-subtype="objective_grammar" onclick="switchObjectiveSubtab(this)">语法填空</div>
+                        <div class="obj-subtab" data-subtype="objective_cat_fishing" onclick="switchObjectiveSubtab(this)">小猫钓鱼</div>
                     </div>
 
-                    <div class="section-title">1. 上传学生作业</div>
-                    <div class="upload-area objective-upload" id="upload-objective-student" onclick="document.getElementById('file-objective-student').click()">
-                        <div class="upload-icon">📄</div>
-                        <div class="upload-text">点击上传学生作业</div>
-                        <div class="upload-hint">支持图片（PNG/JPG）、PDF</div>
-                        <input type="file" id="file-objective-student" multiple accept="image/*,.pdf" style="display:none" onchange="handleObjectiveFiles(this.files, 'student')">
-                    </div>
-                    <div class="file-list" id="file-list-objective-student"></div>
+                    <!-- 阅读理解 -->
+                    <div class="obj-subcontent active" id="obj-subtab-objective_reading">
+                        <div class="section-title">输入错题信息</div>
+                        <div class="input-hint">格式示例：第1题 学生答案：A 正确答案：B&#10;第3题 学生答案：C 正确答案：D</div>
+                        <textarea class="obj-wrong-input" id="wrong-objective_reading" placeholder="请输入错题信息，每行一题，格式如：&#10;第1题 学生答案：A 正确答案：B&#10;第5题 学生答案：C 正确答案：D&#10;第8题 学生答案：for 正确答案：to"></textarea>
 
-                    <div class="section-title" style="margin-top: 20px;">2. 上传题目解析</div>
-                    <div class="upload-area objective-upload" id="upload-objective-answer" onclick="document.getElementById('file-objective-answer').click()">
-                        <div class="upload-icon">📑</div>
-                        <div class="upload-text">点击上传题目解析</div>
-                        <div class="upload-hint">支持Word文档（.doc/.docx）</div>
-                        <input type="file" id="file-objective-answer" accept=".doc,.docx" style="display:none" onchange="handleObjectiveFiles(this.files, 'answer')">
+                        <div class="section-title" style="margin-top: 20px;">上传题目解析</div>
+                        <div class="upload-area obj-answer-upload" id="upload-obj-answer-objective_reading" onclick="document.getElementById('file-obj-answer-objective_reading').click()">
+                            <div class="upload-icon">📑</div>
+                            <div class="upload-text">点击上传题目解析文档</div>
+                            <div class="upload-hint">支持Word文档（.doc/.docx），包含正确答案和解析</div>
+                            <input type="file" id="file-obj-answer-objective_reading" accept=".doc,.docx" style="display:none" onchange="handleObjAnswerFiles(this.files, 'objective_reading')">
+                        </div>
+                        <div class="file-list" id="file-list-obj-answer-objective_reading"></div>
                     </div>
-                    <div class="file-list" id="file-list-objective-answer"></div>
+
+                    <!-- 六选四 -->
+                    <div class="obj-subcontent" id="obj-subtab-objective_six_choose_four">
+                        <div class="section-title">输入错题信息</div>
+                        <div class="input-hint">格式示例：第1题 学生答案：A 正确答案：C</div>
+                        <textarea class="obj-wrong-input" id="wrong-objective_six_choose_four" placeholder="请输入错题信息，每行一题，格式如：&#10;第1题 学生答案：A 正确答案：C&#10;第3题 学生答案：D 正确答案：B"></textarea>
+
+                        <div class="section-title" style="margin-top: 20px;">上传题目解析</div>
+                        <div class="upload-area obj-answer-upload" id="upload-obj-answer-objective_six_choose_four" onclick="document.getElementById('file-obj-answer-objective_six_choose_four').click()">
+                            <div class="upload-icon">📑</div>
+                            <div class="upload-text">点击上传题目解析文档</div>
+                            <div class="upload-hint">支持Word文档（.doc/.docx），包含正确答案和解析</div>
+                            <input type="file" id="file-obj-answer-objective_six_choose_four" accept=".doc,.docx" style="display:none" onchange="handleObjAnswerFiles(this.files, 'objective_six_choose_four')">
+                        </div>
+                        <div class="file-list" id="file-list-obj-answer-objective_six_choose_four"></div>
+                    </div>
+
+                    <!-- 完形填空 -->
+                    <div class="obj-subcontent" id="obj-subtab-objective_cloze">
+                        <div class="section-title">输入错题信息</div>
+                        <div class="input-hint">格式示例：第2题 学生答案：A 正确答案：B</div>
+                        <textarea class="obj-wrong-input" id="wrong-objective_cloze" placeholder="请输入错题信息，每行一题，格式如：&#10;第1题 学生答案：B 正确答案：A&#10;第5题 学生答案：C 正确答案：D"></textarea>
+
+                        <div class="section-title" style="margin-top: 20px;">上传题目解析</div>
+                        <div class="upload-area obj-answer-upload" id="upload-obj-answer-objective_cloze" onclick="document.getElementById('file-obj-answer-objective_cloze').click()">
+                            <div class="upload-icon">📑</div>
+                            <div class="upload-text">点击上传题目解析文档</div>
+                            <div class="upload-hint">支持Word文档（.doc/.docx），包含正确答案和解析</div>
+                            <input type="file" id="file-obj-answer-objective_cloze" accept=".doc,.docx" style="display:none" onchange="handleObjAnswerFiles(this.files, 'objective_cloze')">
+                        </div>
+                        <div class="file-list" id="file-list-obj-answer-objective_cloze"></div>
+                    </div>
+
+                    <!-- 语法填空 -->
+                    <div class="obj-subcontent" id="obj-subtab-objective_grammar">
+                        <div class="section-title">输入错题信息</div>
+                        <div class="input-hint">格式示例：第1题 学生答案：invented 正确答案：was invented</div>
+                        <textarea class="obj-wrong-input" id="wrong-objective_grammar" placeholder="请输入错题信息，每行一题，格式如：&#10;第1题 学生答案：invented 正确答案：was invented&#10;第4题 学生答案：total 正确答案：totally"></textarea>
+
+                        <div class="section-title" style="margin-top: 20px;">上传题目解析</div>
+                        <div class="upload-area obj-answer-upload" id="upload-obj-answer-objective_grammar" onclick="document.getElementById('file-obj-answer-objective_grammar').click()">
+                            <div class="upload-icon">📑</div>
+                            <div class="upload-text">点击上传题目解析文档</div>
+                            <div class="upload-hint">支持Word文档（.doc/.docx），包含正确答案和解析</div>
+                            <input type="file" id="file-obj-answer-objective_grammar" accept=".doc,.docx" style="display:none" onchange="handleObjAnswerFiles(this.files, 'objective_grammar')">
+                        </div>
+                        <div class="file-list" id="file-list-obj-answer-objective_grammar"></div>
+                    </div>
+
+                    <!-- 小猫钓鱼 -->
+                    <div class="obj-subcontent" id="obj-subtab-objective_cat_fishing">
+                        <div class="section-title">输入错题信息</div>
+                        <div class="input-hint">格式示例：第1题 学生答案：B 正确答案：E</div>
+                        <textarea class="obj-wrong-input" id="wrong-objective_cat_fishing" placeholder="请输入错题信息，每行一题，格式如：&#10;第1题 学生答案：B 正确答案：E&#10;第3题 学生答案：G 正确答案：H"></textarea>
+
+                        <div class="section-title" style="margin-top: 20px;">上传题目解析</div>
+                        <div class="upload-area obj-answer-upload" id="upload-obj-answer-objective_cat_fishing" onclick="document.getElementById('file-obj-answer-objective_cat_fishing').click()">
+                            <div class="upload-icon">📑</div>
+                            <div class="upload-text">点击上传题目解析文档</div>
+                            <div class="upload-hint">支持Word文档（.doc/.docx），包含正确答案和解析</div>
+                            <input type="file" id="file-obj-answer-objective_cat_fishing" accept=".doc,.docx" style="display:none" onchange="handleObjAnswerFiles(this.files, 'objective_cat_fishing')">
+                        </div>
+                        <div class="file-list" id="file-list-obj-answer-objective_cat_fishing"></div>
+                    </div>
                 </div>
 
                 <!-- 自定义模板 -->
@@ -1751,7 +1917,7 @@
                 <!-- 加载中 -->
                 <div class="loading" id="loading">
                     <div class="spinner"></div>
-                    <div class="loading-text">正在批改中，请稍候...</div>
+                    <div class="loading-text" id="loading-text">正在批改中，请稍候...</div>
                 </div>
 
                 <!-- 错误提示 -->
@@ -1759,10 +1925,16 @@
 
                 <!-- 结果区域 -->
                 <div class="result-area" id="result-area">
-                    <div class="result-title">✅ 批改完成！</div>
-                    <div class="score-display">
+                    <div class="result-title" id="result-title">✅ 批改完成！</div>
+                    <div class="score-display" id="score-display">
                         <span id="result-score">0</span>
                         <span class="full">/ <span id="result-full-score">0</span> 分</span>
+                    </div>
+                    <!-- 讲义模式信息 -->
+                    <div id="handout-info" style="display:none; text-align:center; padding: 16px 0;">
+                        <div style="font-size: 48px; margin-bottom: 12px;">📚</div>
+                        <div id="handout-title" style="font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 8px;">讲义生成完成</div>
+                        <div id="handout-pattern" style="font-size: 14px; color: #6b7280;"></div>
                     </div>
                     <div id="result-rules-info" style="display: none; margin-top: 12px; padding: 10px 14px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; font-size: 13px; color: #065f46;">
                         <span style="font-weight: 600;">📏 已应用规则：</span>
@@ -1991,6 +2163,8 @@
         let customTemplates = [];
         let selectedTemplateId = null;
         let templateFileToUpload = null;
+        // 概要写作当前模式
+        let summaryMode = 'grading';
 
         // 页面加载时获取模板列表
         document.addEventListener('DOMContentLoaded', () => {
@@ -2166,6 +2340,17 @@
             // 重置结果
             document.getElementById('result-area').classList.remove('show');
             document.getElementById('error-msg').classList.remove('show');
+
+            // 更新提交按钮和加载提示文字
+            const submitBtn = document.getElementById('submit-btn');
+            const loadingText = document.getElementById('loading-text');
+            if (type === 'summary' && summaryMode === 'handout') {
+                submitBtn.textContent = '✨ 生成讲义';
+                loadingText.textContent = '正在生成讲义，请稍候...';
+            } else {
+                submitBtn.textContent = '✨ 开始批改';
+                loadingText.textContent = '正在批改中，请稍候...';
+            }
         }
 
         // 处理文件上传
@@ -2189,6 +2374,57 @@
         // 删除文件
         function removeFile(el, type, index) {
             uploadedFiles[type].splice(index, 1);
+            el.parentElement.remove();
+        }
+
+        // 当前客观题子题型
+        let currentObjectiveSubtype = 'objective_reading';
+
+        // 客观题子题型答案文件存储
+        let objAnswerFiles = {
+            'objective_reading': [],
+            'objective_six_choose_four': [],
+            'objective_cloze': [],
+            'objective_grammar': [],
+            'objective_cat_fishing': []
+        };
+
+        // 切换客观题子题型
+        function switchObjectiveSubtab(el) {
+            const subtype = el.getAttribute('data-subtype');
+            currentObjectiveSubtype = subtype;
+
+            // 更新Tab样式
+            document.querySelectorAll('.obj-subtab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+
+            // 更新内容
+            document.querySelectorAll('.obj-subcontent').forEach(c => c.classList.remove('active'));
+            document.getElementById('obj-subtab-' + subtype).classList.add('active');
+        }
+
+        // 处理客观题子题型的答案文件上传
+        function handleObjAnswerFiles(files, subtype) {
+            // 替换（只保留一个文件）
+            objAnswerFiles[subtype] = [];
+            document.getElementById('file-list-obj-answer-' + subtype).innerHTML = '';
+
+            const listEl = document.getElementById('file-list-obj-answer-' + subtype);
+
+            for (let f of files) {
+                objAnswerFiles[subtype].push(f);
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <span class="file-name">📑 ${f.name} (${(f.size/1024).toFixed(1)} KB) <span class="file-success-icon" title="上传成功">✓</span></span>
+                    <span class="file-remove" onclick="removeObjAnswerFile(this, '${subtype}', ${objAnswerFiles[subtype].length - 1})">×</span>
+                `;
+                listEl.appendChild(item);
+            }
+        }
+
+        function removeObjAnswerFile(el, subtype, index) {
+            objAnswerFiles[subtype].splice(index, 1);
             el.parentElement.remove();
         }
 
@@ -2238,8 +2474,11 @@
                 e.preventDefault();
                 area.classList.remove('dragover');
                 const areaId = area.id.replace('upload-', '');
-                if (areaId.startsWith('objective-')) {
-                    // 客观题的两个上传区
+                if (areaId.startsWith('obj-answer-')) {
+                    const subtype = areaId.replace('obj-answer-', '');
+                    handleObjAnswerFiles(e.dataTransfer.files, subtype);
+                } else if (areaId.startsWith('objective-')) {
+                    // 客观题的两个上传区（旧版，保留兼容）
                     const subType = areaId.replace('objective-', '');
                     handleObjectiveFiles(e.dataTransfer.files, subType);
                 } else {
@@ -2247,6 +2486,46 @@
                 }
             });
         });
+
+        function switchSummaryMode(el) {
+            const mode = el.getAttribute('data-mode');
+            summaryMode = mode;
+
+            document.querySelectorAll('.mode-option').forEach(opt => opt.classList.remove('active'));
+            el.classList.add('active');
+
+            // 批改模式下显示学生作文输入区和上传提示，讲义模式下隐藏
+            const studentInput = document.getElementById('summary-student-input');
+            const divider = document.getElementById('summary-divider');
+            const uploadTip = document.getElementById('summary-upload-tip');
+            const uploadText = document.getElementById('summary-upload-text');
+            const uploadHint = document.getElementById('summary-upload-hint');
+            const topicTitle = document.querySelector('#summary-topic-input .section-title');
+            const submitBtn = document.getElementById('submit-btn');
+            const loadingText = document.getElementById('loading-text');
+
+            if (mode === 'handout') {
+                // 讲义模式：隐藏学生作文输入
+                studentInput.style.display = 'none';
+                divider.style.display = 'none';
+                uploadTip.textContent = '📸 图片作为原文，Word/PDF作为格式参考，可同时上传';
+                uploadText.textContent = '上传原文图片 + 参考格式文档';
+                uploadHint.textContent = '图片=原文题目 | Word/PDF=讲义格式参考';
+                if (topicTitle) topicTitle.textContent = '输入原文';
+                submitBtn.textContent = '✨ 生成讲义';
+                loadingText.textContent = '正在生成讲义，请稍候...';
+            } else {
+                // 批改模式：显示学生作文输入
+                studentInput.style.display = '';
+                divider.style.display = '';
+                uploadTip.textContent = '📸 图片=学生答案，Word/PDF=参考资料';
+                uploadText.textContent = '上传学生答案图片 + 参考文档';
+                uploadHint.textContent = '学生答案只能是图片或文字，文档仅作参考';
+                if (topicTitle) topicTitle.textContent = '输入原文';
+                submitBtn.textContent = '✨ 开始批改';
+                loadingText.textContent = '正在批改中，请稍候...';
+            }
+        }
 
         // 提交批改
         async function submitGrade() {
@@ -2260,22 +2539,35 @@
 
             // 获取文本
             let text = '';
+            let actualGradeType = currentType;
+
             if (currentType === 'objective') {
-                // 客观题：检查两个文件
-                if (objectiveFiles.student.length === 0) {
-                    errorMsg.textContent = '请上传学生作业';
+                // 使用子题型
+                actualGradeType = currentObjectiveSubtype;
+                // 检查错题输入
+                const wrongInput = document.getElementById('wrong-' + currentObjectiveSubtype).value.trim();
+                if (!wrongInput) {
+                    errorMsg.textContent = '请输入错题信息';
                     errorMsg.classList.add('show');
                     return;
                 }
-                if (objectiveFiles.answer.length === 0) {
-                    errorMsg.textContent = '请上传题目解析';
+                // 检查答案文件
+                if (objAnswerFiles[currentObjectiveSubtype].length === 0) {
+                    errorMsg.textContent = '请上传题目解析文档';
                     errorMsg.classList.add('show');
                     return;
                 }
+                text = wrongInput;
             } else if (currentType === 'summary') {
                 const original = document.getElementById('text-summary-original').value;
-                const student = document.getElementById('text-summary').value;
-                text = `【原文】\n${original}\n\n【学生概要】\n${student}`;
+                if (summaryMode === 'handout') {
+                    // 讲义模式：只需要原文
+                    text = `【原文】\n${original}`;
+                } else {
+                    // 批改模式：需要原文和学生概要
+                    const student = document.getElementById('text-summary').value;
+                    text = `【原文】\n${original}\n\n【学生概要】\n${student}`;
+                }
             } else if (currentType === 'translation') {
                 const original = document.getElementById('text-translation-original').value;
                 const student = document.getElementById('text-translation').value;
@@ -2304,24 +2596,26 @@
             loading.classList.add('show');
 
             const formData = new FormData();
-            formData.append('type', currentType);
+            formData.append('type', actualGradeType);
             formData.append('text', text);
 
             if (currentType === 'custom' && selectedTemplateId) {
                 formData.append('template_id', selectedTemplateId);
             }
 
-            // 客观题：上传两类文件
+            // 客观题子题型：上传答案文件 + 错题文本
             if (currentType === 'objective') {
-                for (let f of objectiveFiles.student) {
-                    formData.append('student_files', f);
-                }
-                for (let f of objectiveFiles.answer) {
+                for (let f of objAnswerFiles[currentObjectiveSubtype]) {
                     formData.append('answer_file', f);
                 }
+                formData.append('wrong_questions', document.getElementById('wrong-' + currentObjectiveSubtype).value);
             } else {
                 for (let f of files) {
                     formData.append('files', f);
+                }
+                // 概要写作讲义模式标识
+                if (currentType === 'summary' && summaryMode === 'handout') {
+                    formData.append('mode', 'handout');
                 }
             }
 
@@ -2338,6 +2632,28 @@
                     document.getElementById('result-full-score').textContent = data.full_score;
                     document.getElementById('download-link').href = data.download_url;
                     document.getElementById('download-link').download = data.filename;
+
+                    // 讲义模式结果展示
+                    const scoreDisplay = document.getElementById('score-display');
+                    const handoutInfo = document.getElementById('handout-info');
+                    const resultTitle = document.getElementById('result-title');
+                    const downloadBtn = document.getElementById('download-link');
+
+                    if (currentType === 'summary' && summaryMode === 'handout') {
+                        // 讲义模式：隐藏分数，显示讲义信息
+                        scoreDisplay.style.display = 'none';
+                        handoutInfo.style.display = 'block';
+                        resultTitle.textContent = '📚 讲义生成完成！';
+                        document.getElementById('handout-title').textContent = data.result?.title || '讲义生成完成';
+                        document.getElementById('handout-pattern').textContent = data.result?.pattern ? '语篇模式：' + data.result.pattern : '';
+                        downloadBtn.innerHTML = '📥 下载讲义文档（Word）';
+                    } else {
+                        // 批改模式：正常显示分数
+                        scoreDisplay.style.display = '';
+                        handoutInfo.style.display = 'none';
+                        resultTitle.textContent = '✅ 批改完成！';
+                        downloadBtn.innerHTML = '📥 下载批改文档（Word）';
+                    }
                     
                     // 显示应用的规则
                     const rulesInfo = document.getElementById('result-rules-info');
@@ -2352,10 +2668,20 @@
                     resultArea.classList.add('show');
                     // 清空上传文件列表（源文件已自动删除）
                     if (currentType === 'objective') {
-                        objectiveFiles.student = [];
-                        objectiveFiles.answer = [];
-                        document.getElementById('file-list-objective-student').innerHTML = '';
-                        document.getElementById('file-list-objective-answer').innerHTML = '';
+                        // 清空当前子题型的答案文件和输入
+                        objAnswerFiles[currentObjectiveSubtype] = [];
+                        document.getElementById('file-list-obj-answer-' + currentObjectiveSubtype).innerHTML = '';
+                        document.getElementById('wrong-' + currentObjectiveSubtype).value = '';
+                    } else if (currentType === 'summary') {
+                        if (summaryMode === 'handout') {
+                            // 讲义模式：保留文件列表（方便连续生成讲义），只清空学生概要
+                            document.getElementById('text-summary').value = '';
+                        } else {
+                            // 批改模式：清空文件列表和学生概要，保留原文
+                            uploadedFiles[currentType] = [];
+                            document.getElementById('file-list-' + currentType).innerHTML = '';
+                            document.getElementById('text-summary').value = '';
+                        }
                     } else {
                         uploadedFiles[currentType] = [];
                         document.getElementById('file-list-' + currentType).innerHTML = '';
@@ -3000,8 +3326,14 @@
             'essay_gaokao': '高考作文',
             'essay_ielts': '雅思作文',
             'summary': '概要写作',
+            'summary_handout': '概要写作讲义',
             'translation': '翻译',
             'objective': '客观题',
+            'objective_reading': '阅读理解',
+            'objective_six_choose_four': '六选四',
+            'objective_cloze': '完形填空',
+            'objective_grammar': '语法填空',
+            'objective_cat_fishing': '小猫钓鱼',
             'custom': '自定义模板'
         };
 

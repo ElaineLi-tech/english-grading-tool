@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, send_file, jsonify
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import os
@@ -339,11 +340,12 @@ def call_doubao_chat(input_list, api_key, model_name='doubao-seed-2-0-mini-26042
         }
 
 
-def build_grading_prompt(student_text, template, has_image=False, custom_rules=None, grading_standard=None, template_folder=None):
+def build_grading_prompt(student_text, template, has_image=False, custom_rules=None, grading_standard=None, template_folder=None, reference_documents=''):
     """构建批改prompt，让AI按指定模板格式返回JSON
     custom_rules: 用户自定义规则列表，每条规则包含name和content
     grading_standard: 评分标准文本内容，用于指导AI评分
     template_folder: 模板文件夹路径，用于读取模板文件内容
+    reference_documents: 用户上传的docx/pdf等参考文档内容（仅作参考，不是学生答案）
     """
     
     scoring_dims = template.get('scoring_dimensions', [
@@ -405,6 +407,14 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
         model_essay_desc = '"参考范文（在学生原文基础上改写提升，所有修改/提升的部分请用**两个星号**包裹标记，例如：**improved** 表示此处有修改。结构更完整、用词更丰富、句式更多样）\\n\\n【好词好句学习】\\n1. 好词/好句型 - 解释\\n2. ..."'
         good_sentences_field = '  "good_sentences": [\n    "好词1 - 释义",\n    "好词2 - 释义"\n  ],\n'
     
+    # 构建参考文档部分
+    reference_section = ''
+    if reference_documents and reference_documents.strip():
+        ref_text = reference_documents.strip()
+        if len(ref_text) > 3000:
+            ref_text = ref_text[:3000] + '\n...（内容过长，已截取核心部分）'
+        reference_section = f"\n【参考文档】\n以下是用户上传的参考资料，仅用于辅助批改（如参考答案、题目原文等），不是学生答案：\n{ref_text}\n"
+    
     prompt = f"""你是一位专业的英语作文批改老师，请按照以下要求批改学生作文。
 
 【批改模板】
@@ -416,6 +426,9 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
 {format_template_section}
 {rules_section}
 {standard_section}
+{reference_section}
+⚠️ 重要规则：学生答案只来自【学生作文】部分（文本或图片识别内容），【参考文档】【批改格式参考模板】中的内容都不是学生答案，仅作批改参考使用。
+
 【学生作文】
 {student_text}
 
@@ -460,6 +473,134 @@ def build_grading_prompt(student_text, template, has_image=False, custom_rules=N
     return prompt
 
 
+def build_summary_handout_prompt(passage_text, template, scoring_standard_text='', custom_rules=None, template_folder=None, format_reference_text=''):
+    """构建概要写作讲义生成的prompt
+    format_reference_text: 用户上传的docx/pdf文档内容（优先级高于内置模板，作为格式参考）
+    """
+    template_name = template.get('name', '概要写作讲义')
+    
+    # 格式参考内容：优先使用用户上传的文档，其次使用内置模板
+    format_template_section = ''
+    ref_content = ''
+    ref_source = ''
+    
+    if format_reference_text and format_reference_text.strip():
+        ref_content = format_reference_text.strip()
+        ref_source = '用户上传的参考文档'
+    else:
+        # 读取内置模板文件内容作为格式参考
+        template_file = template.get('template_file')
+        is_overridden = template.get('is_overridden', False)
+        if template_file and template_folder:
+            template_path = get_template_file_path(template_file, is_overridden)
+            if template_path and os.path.exists(template_path):
+                ext = os.path.splitext(template_path)[1].lower()
+                if ext in {'.docx', '.doc'}:
+                    template_content = extract_text_from_docx(template_path)
+                    if template_content:
+                        ref_content = template_content
+                        ref_source = '内置模板'
+    
+    if ref_content:
+        if len(ref_content) > 3000:
+            ref_content = ref_content[:3000] + '\n...（内容过长，已截取核心部分）'
+        format_template_section = f"\n【讲义格式参考】（来自{ref_source}）\n以下是讲义的格式参考范例，仅用于参考讲义的结构、用语习惯和排版方式。\n⚠️ 重要提醒：参考文档中的原文、题目、答案等内容只是示例，你必须基于【原文】部分的真实内容来生成讲义，绝对不能使用或照搬参考文档中的示例题目和内容！\n{ref_content}\n"
+    
+    custom_rules_text = ''
+    if custom_rules and len(custom_rules) > 0:
+        custom_rules_text = '\n【自定义规则】\n'
+        for i, rule in enumerate(custom_rules, 1):
+            custom_rules_text += f"{i}. {rule.get('content', '')}\n"
+    
+    scoring_standard_section = ''
+    if scoring_standard_text:
+        scoring_standard_section = f"\n【3+2评分标准参考】\n以下是概要写作的3+2评分标准，请根据这个标准来确定3个大点和2个小点：\n{scoring_standard_text}\n"
+    
+    prompt = f"""你是一位专业的英语概要写作老师，请根据以下原文，生成一份完整的概要写作讲义。
+
+【原文】
+{passage_text}
+{format_template_section}{scoring_standard_section}
+【任务要求】
+请仔细阅读【原文】部分的内容，分析其语篇结构，生成一份概要写作讲义。
+
+⚠️ 核心规则：你必须基于用户上传的【原文】内容生成讲义，绝对不能使用【讲义格式参考模板】中的示例题目或内容。模板仅用于参考排版格式和用语风格。
+
+讲义需要包含以下部分：
+
+1. **标题**：包含日期和主题，如"X.X 概要写作讲义 主张-反主张型"
+
+2. **原文**：Directions + 英文原文 + 中文翻译（逐段中英对照）
+
+3. **一、语篇模式**
+   - 判断语篇类型（如：主张-反主张型、问题-解决型、现象-分析型、原因-结果型、对比型等）
+   - 给出该类型的定义
+   - 结构分析表格：结构环节 / 原文对应段落 / 核心内容
+
+4. **二、"3+2"得分**
+   - 3个大点（main points）：每个大点一句话概括，说明对应原文哪几段，以及为什么是大点
+   - 2个小点（supporting details）：从大点中选2个关键细节补充，说明对应哪个大点
+
+5. **做题方法**
+   - 分步骤说明这类文章的概要写作方法和技巧（4-6步）
+
+6. **参考答案**
+   - 60词以内的英文参考范文
+   - 对应的中文翻译
+
+【输出格式】
+返回严格的JSON格式，结构如下：
+{{
+  "title": "讲义标题（如：9.26 概要写作讲义 主张-反主张型）",
+  "directions": "题目要求（Read the following passage...）",
+  "passage_english": "完整的英文原文",
+  "passage_chinese": "完整的中文翻译，逐段对应",
+  "pattern_name": "语篇模式名称（如：主张-反主张型）",
+  "pattern_english_name": "英文名称（如：Claim-Counterclaim Pattern）",
+  "pattern_definition": "语篇模式定义",
+  "structure_analysis": [
+    {{
+      "section": "结构环节名称（如：Background / Claim / Counterclaim / Consensus）",
+      "paragraph": "对应原文段落（如：第1段）",
+      "content": "核心内容概括"
+    }}
+  ],
+  "three_main_points": [
+    {{
+      "point": "大点①的英文概括",
+      "explanation": "中文解释，说明对应原文哪几段，为什么是大点",
+      "paragraph": "对应段落"
+    }}
+  ],
+  "two_minor_points": [
+    {{
+      "point": "小点的英文概括",
+      "explanation": "中文解释，说明对应哪个大点，为什么是小点",
+      "corresponds_to": "对应大点①/②/③"
+    }}
+  ],
+  "method_steps": [
+    "第一步：...",
+    "第二步：...",
+    "第三步：..."
+  ],
+  "sample_answer_english": "60词以内的参考范文（英文）",
+  "sample_answer_chinese": "参考范文的中文翻译"
+}}
+
+注意：
+1. 3个大点必须覆盖全文核心要点，不能遗漏任何主要观点
+2. 2个小点是大点的关键细节支撑，不能和大点重复
+3. 参考范文必须控制在60词以内，使用自己的话表达
+4. 语篇模式判断要准确，结构分析要清晰对应
+5. 做题方法要针对该类型文章的特点，给出实用的技巧
+6. 返回纯JSON，不要有markdown格式或其他说明文字
+7. 如果提供了【讲义格式参考模板】，请严格按照模板的结构和用语风格来组织内容
+{custom_rules_text}
+"""
+    return prompt
+
+
 def extract_text_from_docx(file_path):
     """从Word文档中提取纯文本内容"""
     try:
@@ -481,6 +622,32 @@ def extract_text_from_docx(file_path):
     except Exception as e:
         print(f"读取Word文档失败: {e}")
         return ''
+
+
+def extract_text_from_file(file_path):
+    """从文件中提取纯文本内容（支持docx/doc/pdf/txt）"""
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in {'.docx', '.doc'}:
+        return extract_text_from_docx(file_path)
+    elif ext == '.txt':
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except:
+            return ''
+    elif ext == '.pdf':
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(file_path)
+            text = ''
+            for page in doc:
+                text += page.get_text()
+            doc.close()
+            return text
+        except Exception as e:
+            print(f"读取PDF失败: {e}")
+            return ''
+    return ''
 
 
 def build_objective_grading_prompt(answer_key_text, template, custom_rules=None, template_folder=None):
@@ -566,6 +733,77 @@ def build_objective_grading_prompt(answer_key_text, template, custom_rules=None,
     return prompt
 
 
+def build_objective_text_grading_prompt(wrong_questions_text, answer_key_text, template, custom_rules=None, template_folder=None):
+    """构建基于文字输入的客观题批改prompt
+    wrong_questions_text: 用户手动输入的错题信息（题号、学生答案、正确答案）
+    answer_key_text: 题目解析文档内容
+    template: 批改模板
+    """
+    template_name = template.get('name', '客观题批改')
+    
+    # 读取模板文件内容作为格式参考
+    format_template_section = ''
+    template_file = template.get('template_file')
+    is_overridden = template.get('is_overridden', False)
+    if template_file and template_folder:
+        template_path = get_template_file_path(template_file, is_overridden)
+        if template_path and os.path.exists(template_path):
+            ext = os.path.splitext(template_path)[1].lower()
+            if ext in {'.docx', '.doc'}:
+                template_content = extract_text_from_docx(template_path)
+                if template_content:
+                    if len(template_content) > 2000:
+                        template_content = template_content[:2000] + '\n...（内容过长，已截取核心部分）'
+                    format_template_section = f"\n【批改格式参考模板】\n以下是批改结果的格式模板范例，请严格按照这个模板的结构、用语习惯和排版方式来组织你的批改结果：\n{template_content}\n"
+    
+    custom_rules_text = ''
+    if custom_rules and len(custom_rules) > 0:
+        custom_rules_text = '\n【自定义批改规则】\n'
+        for i, rule in enumerate(custom_rules, 1):
+            custom_rules_text += f"{i}. {rule.get('content', '')}\n"
+    
+    prompt = f"""你是一个专业的英语老师，负责批改学生的{template_name}作业。
+
+【批改模板】
+{template_name}
+{format_template_section}
+【学生错题信息】
+以下是学生做错的题目（包含题号、学生答案、正确答案）：
+{wrong_questions_text}
+
+【题目解析参考】
+{answer_key_text}
+
+【批改要求】
+1. 根据学生错题信息和题目解析，为每道错题生成详细的错题分析
+2. 错题分析要包括：错误原因分析、正确答案解读、相关知识点讲解、解题思路和方法
+3. 如果提供了【批改格式参考模板】，请严格按照模板的格式、结构、用语习惯来组织批改结果
+4. 统计总题数、做对题数、做错题数、得分率
+5. 给出整体评价和针对性建议
+6. 返回严格的JSON格式，结构如下：
+{{
+  "total_questions": 总题数,
+  "correct_count": 做对题数,
+  "wrong_count": 做错题数,
+  "score": 得分（百分制）,
+  "full_score": 100,
+  "wrong_questions": [
+    {{
+      "question_number": "题号",
+      "student_answer": "学生答案",
+      "correct_answer": "正确答案",
+      "error_analysis": "完整的错题分析，严格按照模板格式，包含错误原因、解析、知识点、解题思路等",
+      "knowledge_point": "知识点"
+    }}
+  ],
+  "overall_comment": "整体评价和建议"
+}}
+7. 返回纯JSON，不要有markdown格式或其他说明文字
+{custom_rules_text}
+"""
+    return prompt
+
+
 def grade_objective_with_doubao(student_images, answer_key_text, template, api_key='', model_name='doubao-seed-2-0-mini-260428', custom_rules=None, template_folder=None):
     """使用豆包AI进行客观题批改
     student_images: 学生作业图片路径列表
@@ -631,10 +869,79 @@ def grade_objective_with_doubao(student_images, answer_key_text, template, api_k
     return result_data
 
 
-def grade_with_doubao(student_text, template, image_paths=None, api_key='', model_name='doubao-seed-2-0-mini-260428', custom_rules=None, grading_standard=None):
+def grade_objective_text_with_doubao(wrong_questions_text, answer_key_text, template, api_key='', model_name='doubao-seed-2-0-mini-260428', custom_rules=None, template_folder=None):
+    """使用豆包AI进行文字输入的客观题批改
+    wrong_questions_text: 用户输入的错题信息
+    answer_key_text: 题目解析文本
+    """
+    if not api_key:
+        return None
+    
+    import json
+    
+    prompt = build_objective_text_grading_prompt(
+        wrong_questions_text, answer_key_text, template,
+        custom_rules=custom_rules, template_folder=template_folder
+    )
+    
+    try:
+        # 使用Responses API格式
+        url = 'https://ark.cn-beijing.volces.com/api/v3/responses'
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        content = [{'type': 'input_text', 'text': prompt}]
+        
+        payload = {
+            'model': model_name,
+            'input': content,
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=180)
+        response.raise_for_status()
+        result = response.json()
+        
+        # 解析结果
+        output_text = ''
+        if 'output' in result:
+            for item in result['output']:
+                if item.get('type') == 'message' and 'content' in item:
+                    for c in item['content']:
+                        if c.get('type') == 'output_text':
+                            output_text += c.get('text', '')
+        
+        if not output_text:
+            return {'success': False, 'error': 'AI返回为空'}
+        
+        # 尝试解析JSON
+        try:
+            # 清理可能的markdown标记
+            cleaned = output_text.strip()
+            if cleaned.startswith('```json'):
+                cleaned = cleaned[7:]
+            if cleaned.startswith('```'):
+                cleaned = cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            
+            data = json.loads(cleaned)
+            data['success'] = True
+            return data
+        except json.JSONDecodeError as e:
+            return {'success': False, 'error': f'JSON解析失败: {str(e)}', 'raw_output': output_text[:500]}
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def grade_with_doubao(student_text, template, image_paths=None, api_key='', model_name='doubao-seed-2-0-mini-260428', custom_rules=None, grading_standard=None, reference_documents=''):
     """使用豆包AI进行智能批改
     custom_rules: 用户自定义规则列表
     grading_standard: 评分标准文本内容
+    reference_documents: 用户上传的docx/pdf等参考文档内容（仅作参考，不是学生答案）
     """
     
     if not api_key:
@@ -658,7 +965,7 @@ def grade_with_doubao(student_text, template, image_paths=None, api_key='', mode
         prompt_text = f"（共{image_count}张图片，请识别所有图片中的文字内容并合并后进行批改）"
     else:
         prompt_text = student_text or "（请识别图片中的学生作文并批改）"
-    prompt = build_grading_prompt(prompt_text, template, has_image=bool(image_paths), custom_rules=custom_rules, grading_standard=grading_standard, template_folder=app.config['TEMPLATE_FOLDER'])
+    prompt = build_grading_prompt(prompt_text, template, has_image=bool(image_paths), custom_rules=custom_rules, grading_standard=grading_standard, template_folder=app.config['TEMPLATE_FOLDER'], reference_documents=reference_documents)
     content.append({
         "type": "input_text",
         "text": prompt
@@ -708,6 +1015,75 @@ def grade_with_doubao(student_text, template, image_paths=None, api_key='', mode
             'success': False,
             'error': f'AI返回格式解析失败：{str(e)}\n返回内容：{result.get("content", "")[:500]}'
         }
+
+
+def generate_summary_handout_with_doubao(passage_text, template, scoring_standard_text='', api_key='', model_name='doubao-seed-2-0-mini-260428', custom_rules=None, template_folder=None, image_paths=None, format_reference_text=''):
+    """使用豆包AI生成概要写作讲义
+    image_paths: 图片文件路径列表（作为原文内容，AI会自动识别）
+    format_reference_text: 用户上传的docx/pdf文档内容（作为格式参考模板）
+    """
+    if not api_key:
+        return None
+    
+    import json
+    
+    prompt = build_summary_handout_prompt(
+        passage_text, template,
+        scoring_standard_text=scoring_standard_text,
+        custom_rules=custom_rules,
+        template_folder=template_folder,
+        format_reference_text=format_reference_text
+    )
+    
+    # 构建 input 列表（Responses API格式）
+    content = []
+    
+    # 如果有图片，添加所有图片（作为原文）
+    if image_paths and len(image_paths) > 0:
+        for img_path in image_paths:
+            img_base64 = encode_image_to_base64(img_path)
+            content.append({
+                "type": "input_image",
+                "image_url": f"data:image/jpeg;base64,{img_base64}"
+            })
+    
+    content.append({
+        "type": "input_text",
+        "text": prompt
+    })
+    
+    input_list = [{"role": "user", "content": content}]
+    
+    # 调用API
+    result = call_doubao_chat(input_list, api_key, model_name, temperature=0.3)
+    
+    if not result['success']:
+        return {
+            'success': False,
+            'error': f'AI调用失败：{result["error"]}'
+        }
+    
+    output_text = result.get('content', '')
+    
+    if not output_text:
+        return {'success': False, 'error': 'AI返回为空'}
+    
+    # 尝试解析JSON
+    try:
+        cleaned = output_text.strip()
+        if cleaned.startswith('```json'):
+            cleaned = cleaned[7:]
+        if cleaned.startswith('```'):
+            cleaned = cleaned[3:]
+        if cleaned.endswith('```'):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        
+        data = json.loads(cleaned)
+        data['success'] = True
+        return data
+    except json.JSONDecodeError as e:
+        return {'success': False, 'error': f'JSON解析失败: {str(e)}', 'raw_output': output_text[:500]}
 
 
 # ==================== 内置批改模板 ====================
@@ -768,6 +1144,19 @@ BUILTIN_TEMPLATES = {
         ],
         'style': 'summary'
     },
+    'summary_handout': {
+        'id': 'builtin_summary_handout',
+        'name': '概要写作讲义',
+        'description': '概要写作讲义生成，包含语篇模式分析、3+2得分点拆解、做题方法和参考答案。',
+        'full_score': 10,
+        'scoring_dimensions': [
+            {'name': '内容要点', 'full_score': 5},
+            {'name': '语言表达', 'full_score': 3},
+            {'name': '组织结构', 'full_score': 2}
+        ],
+        'style': 'summary_handout',
+        'template_file': 'summary_handout_template.docx'
+    },
     'translation': {
         'id': 'builtin_translation',
         'name': '翻译',
@@ -790,6 +1179,56 @@ BUILTIN_TEMPLATES = {
         ],
         'style': 'objective',
         'has_error_analysis': True
+    },
+    'objective_reading': {
+        'id': 'builtin_obj_reading',
+        'name': '阅读理解',
+        'description': '阅读理解题批改，生成错题分析和解题思路。',
+        'full_score': 100,
+        'scoring_dimensions': [{'name': '正确率', 'full_score': 100}],
+        'style': 'objective_reading',
+        'has_error_analysis': True,
+        'template_file': 'objective_reading_template.docx'
+    },
+    'objective_six_choose_four': {
+        'id': 'builtin_obj_six_choose_four',
+        'name': '六选四',
+        'description': '六选四题型批改，分析句子衔接和逻辑关系。',
+        'full_score': 100,
+        'scoring_dimensions': [{'name': '正确率', 'full_score': 100}],
+        'style': 'objective_six_choose_four',
+        'has_error_analysis': True,
+        'template_file': 'objective_six_choose_four_template.docx'
+    },
+    'objective_cloze': {
+        'id': 'builtin_obj_cloze',
+        'name': '完形填空',
+        'description': '完形填空批改，分析词汇、语法和语境理解。',
+        'full_score': 100,
+        'scoring_dimensions': [{'name': '正确率', 'full_score': 100}],
+        'style': 'objective_cloze',
+        'has_error_analysis': True,
+        'template_file': 'objective_cloze_template.docx'
+    },
+    'objective_grammar': {
+        'id': 'builtin_obj_grammar',
+        'name': '语法填空',
+        'description': '语法填空批改，分析语法知识点和词形变化。',
+        'full_score': 100,
+        'scoring_dimensions': [{'name': '正确率', 'full_score': 100}],
+        'style': 'objective_grammar',
+        'has_error_analysis': True,
+        'template_file': 'objective_grammar_template.docx'
+    },
+    'objective_cat_fishing': {
+        'id': 'builtin_obj_cat_fishing',
+        'name': '小猫钓鱼',
+        'description': '小猫钓鱼（选词填空）批改，分析词义辨析和搭配。',
+        'full_score': 100,
+        'scoring_dimensions': [{'name': '正确率', 'full_score': 100}],
+        'style': 'objective_cat_fishing',
+        'has_error_analysis': True,
+        'template_file': 'objective_cat_fishing_template.docx'
     }
 }
 
@@ -1298,11 +1737,17 @@ def generate_essay_doc(result, output_path, title, uploaded_images=None, templat
     doc.save(output_path)
 
 
-def generate_objective_doc(result, output_path, title, uploaded_images=None):
+def generate_objective_doc(result, output_path, title, uploaded_images=None, template=None):
     """生成客观题批改Word文档
     包含：学生原文 + 错题分析
     uploaded_images: 上传的学生作业图片路径列表，用于在原文部分展示手写原图
+    template: 批改模板，用于根据不同题型调整文档格式
     """
+    # 获取模板风格
+    style = 'objective'
+    if template:
+        style = template.get('style', 'objective')
+    
     score = result.get('score', 0)
     full_score = result.get('full_score', 100)
     doc = create_doc_with_title(title, f"满分：{full_score}分  得分：{score}分")
@@ -1336,6 +1781,19 @@ def generate_objective_doc(result, output_path, title, uploaded_images=None):
             else:
                 add_para(doc, [('', False, BLACK)], size=6, indent=24)
     
+    # 如果是客观题子题型且result中没有student_text但有wrong_questions_text，显示学生输入的错题信息
+    objective_sub_styles = ['objective_reading', 'objective_six_choose_four', 'objective_cloze', 'objective_grammar', 'objective_cat_fishing']
+    if style in objective_sub_styles:
+        wrong_questions_text = result.get('wrong_questions_text', '')
+        if wrong_questions_text and not result.get('student_text'):
+            add_para(doc, [('学生错题信息', True, BLUE)], size=14, space_before=10, space_after=4)
+            lines = wrong_questions_text.split('\n')
+            for line in lines:
+                if line.strip():
+                    add_para(doc, [(line.strip(), False, BLACK)], size=12, indent=24)
+                else:
+                    add_para(doc, [('', False, BLACK)], size=6, indent=24)
+    
     # 错题分析
     add_para(doc, [('错题分析', True, BLUE)], size=14, space_before=10, space_after=4)
     
@@ -1366,6 +1824,265 @@ def generate_objective_doc(result, output_path, title, uploaded_images=None):
         for line in comment_lines:
             if line.strip():
                 add_para(doc, [(line.strip(), False, BLACK)], size=12, indent=24)
+    
+    doc.save(output_path)
+
+
+def generate_summary_handout_doc(handout_data, output_path, title):
+    """生成概要写作讲义Word文档"""
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    
+    BLUE = RGBColor(0x00, 0x70, 0xC0)
+    RED = RGBColor(0xC0, 0x00, 0x00)
+    GREEN = RGBColor(0x00, 0x80, 0x00)
+    BLACK = RGBColor(0, 0, 0)
+    GRAY = RGBColor(0x66, 0x66, 0x66)
+    FONT_CN = '微软雅黑'
+    FONT_EN = 'Times New Roman'
+    
+    def set_font(run, size=12, bold=False, color=None, font_cn=FONT_CN):
+        run.font.name = FONT_EN
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        if color:
+            run.font.color.rgb = color
+        rPr = run._element.get_or_add_rPr()
+        rFonts = rPr.find(qn('w:rFonts'))
+        if rFonts is None:
+            rFonts = OxmlElement('w:rFonts')
+            rPr.insert(0, rFonts)
+        rFonts.set(qn('w:ascii'), FONT_EN)
+        rFonts.set(qn('w:hAnsi'), FONT_EN)
+        rFonts.set(qn('w:eastAsia'), font_cn)
+    
+    doc = Document()
+    
+    # 设置页面边距
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Cm(2.54)
+        section.bottom_margin = Cm(2.54)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2.5)
+    
+    # ===== 标题 =====
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(handout_data.get('title', title))
+    set_font(run, 16, True, BLUE)
+    p.paragraph_format.space_after = Pt(12)
+    
+    # ===== Directions =====
+    if handout_data.get('directions'):
+        p = doc.add_paragraph()
+        run = p.add_run('Directions: ')
+        set_font(run, 11, True, BLACK)
+        run2 = p.add_run(handout_data['directions'])
+        set_font(run2, 11, False, BLACK)
+        p.paragraph_format.space_after = Pt(8)
+    
+    # ===== 原文 =====
+    p = doc.add_paragraph()
+    run = p.add_run('原文')
+    set_font(run, 14, True, BLUE)
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(6)
+    
+    # 英文原文
+    eng_text = handout_data.get('passage_english', '')
+    eng_paragraphs = eng_text.split('\n')
+    for para in eng_paragraphs:
+        if para.strip():
+            p = doc.add_paragraph()
+            run = p.add_run(para.strip())
+            set_font(run, 11, False, BLACK)
+            p.paragraph_format.space_after = Pt(3)
+            p.paragraph_format.line_spacing = 1.5
+    
+    # 中文翻译
+    ch_text = handout_data.get('passage_chinese', '')
+    if ch_text:
+        doc.add_paragraph()  # 空行
+        ch_paragraphs = ch_text.split('\n')
+        for para in ch_paragraphs:
+            if para.strip():
+                p = doc.add_paragraph()
+                run = p.add_run(para.strip())
+                set_font(run, 10, False, GRAY)
+                p.paragraph_format.space_after = Pt(2)
+                p.paragraph_format.line_spacing = 1.3
+    
+    # ===== 一、语篇模式 =====
+    p = doc.add_paragraph()
+    run = p.add_run('一、语篇模式')
+    set_font(run, 14, True, BLUE)
+    p.paragraph_format.space_before = Pt(14)
+    p.paragraph_format.space_after = Pt(6)
+    
+    pattern_name = handout_data.get('pattern_name', '')
+    pattern_eng = handout_data.get('pattern_english_name', '')
+    if pattern_name:
+        p = doc.add_paragraph()
+        run = p.add_run(f'本篇属于{pattern_name}')
+        if pattern_eng:
+            run2 = p.add_run(f'（{pattern_eng}）')
+            set_font(run2, 11, False, BLACK)
+        set_font(run, 12, True, RED)
+        p.paragraph_format.space_after = Pt(4)
+    
+    if handout_data.get('pattern_definition'):
+        p = doc.add_paragraph()
+        run = p.add_run('定义：')
+        set_font(run, 11, True, BLACK)
+        run2 = p.add_run(handout_data['pattern_definition'])
+        set_font(run2, 11, False, BLACK)
+        p.paragraph_format.space_after = Pt(6)
+    
+    # 结构分析表格
+    structure = handout_data.get('structure_analysis', [])
+    if structure:
+        p = doc.add_paragraph()
+        run = p.add_run('结构分析')
+        set_font(run, 12, True, BLACK)
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(4)
+        
+        table = doc.add_table(rows=1, cols=3)
+        table.style = 'Light Grid Accent 1'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # 表头
+        hdr_cells = table.rows[0].cells
+        headers = ['结构环节', '原文对应', '核心内容']
+        for i, h in enumerate(headers):
+            hdr_cells[i].text = h
+            for para in hdr_cells[i].paragraphs:
+                for run in para.runs:
+                    set_font(run, 10, True, BLACK)
+            # 表头底纹
+            tc = hdr_cells[i]._tc
+            tcPr = tc.get_or_add_tcPr()
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:fill'), 'D9E2F3')
+            tcPr.append(shd)
+        
+        # 设置列宽
+        for row in table.rows:
+            row.cells[0].width = Cm(3)
+            row.cells[1].width = Cm(2.5)
+            row.cells[2].width = Cm(10)
+        
+        for item in structure:
+            row_cells = table.add_row().cells
+            row_cells[0].text = item.get('section', '')
+            row_cells[1].text = item.get('paragraph', '')
+            row_cells[2].text = item.get('content', '')
+            for cell in row_cells:
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        set_font(run, 10, False, BLACK)
+        
+        doc.add_paragraph()  # 空行
+    
+    # ===== 二、"3+2"得分 =====
+    p = doc.add_paragraph()
+    run = p.add_run('二、"3+2"得分')
+    set_font(run, 14, True, BLUE)
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_after = Pt(6)
+    
+    # 3个大点
+    p = doc.add_paragraph()
+    run = p.add_run('3 个大点')
+    set_font(run, 12, True, RED)
+    p.paragraph_format.space_after = Pt(4)
+    
+    main_points = handout_data.get('three_main_points', [])
+    for i, mp in enumerate(main_points, 1):
+        # 大点英文
+        p = doc.add_paragraph()
+        run = p.add_run(f'大点{"①②③④⑤"[i-1]}：')
+        set_font(run, 11, True, BLACK)
+        run2 = p.add_run(mp.get('point', ''))
+        set_font(run2, 11, False, BLACK)
+        p.paragraph_format.left_indent = Cm(0.5)
+        p.paragraph_format.space_after = Pt(2)
+        
+        # 大点解释
+        if mp.get('explanation'):
+            p = doc.add_paragraph()
+            run = p.add_run(mp['explanation'])
+            set_font(run, 10, False, GRAY)
+            p.paragraph_format.left_indent = Cm(1)
+            p.paragraph_format.space_after = Pt(4)
+    
+    # 2个小点
+    p = doc.add_paragraph()
+    run = p.add_run('2 个小点')
+    set_font(run, 12, True, GREEN)
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(4)
+    
+    minor_points = handout_data.get('two_minor_points', [])
+    for i, mp in enumerate(minor_points, 1):
+        p = doc.add_paragraph()
+        run = p.add_run(f'小点{i}：')
+        set_font(run, 11, True, BLACK)
+        run2 = p.add_run(mp.get('point', ''))
+        set_font(run2, 11, False, BLACK)
+        p.paragraph_format.left_indent = Cm(0.5)
+        p.paragraph_format.space_after = Pt(2)
+        
+        if mp.get('explanation'):
+            p = doc.add_paragraph()
+            cor = mp.get('corresponds_to', '')
+            prefix = f'（{cor}）' if cor else ''
+            run = p.add_run(prefix + mp['explanation'])
+            set_font(run, 10, False, GRAY)
+            p.paragraph_format.left_indent = Cm(1)
+            p.paragraph_format.space_after = Pt(4)
+    
+    # ===== 做题方法 =====
+    p = doc.add_paragraph()
+    run = p.add_run('做题方法')
+    set_font(run, 14, True, BLUE)
+    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_after = Pt(6)
+    
+    steps = handout_data.get('method_steps', [])
+    for step in steps:
+        p = doc.add_paragraph()
+        run = p.add_run(step)
+        set_font(run, 11, False, BLACK)
+        p.paragraph_format.left_indent = Cm(0.5)
+        p.paragraph_format.space_after = Pt(3)
+    
+    # ===== 答案 =====
+    p = doc.add_paragraph()
+    run = p.add_run('答案：')
+    set_font(run, 14, True, BLUE)
+    p.paragraph_format.space_before = Pt(14)
+    p.paragraph_format.space_after = Pt(6)
+    
+    if handout_data.get('sample_answer_english'):
+        p = doc.add_paragraph()
+        run = p.add_run(handout_data['sample_answer_english'])
+        set_font(run, 11, False, BLACK)
+        p.paragraph_format.left_indent = Cm(0.5)
+        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.line_spacing = 1.5
+    
+    if handout_data.get('sample_answer_chinese'):
+        p = doc.add_paragraph()
+        run = p.add_run(handout_data['sample_answer_chinese'])
+        set_font(run, 10, False, GRAY)
+        p.paragraph_format.left_indent = Cm(0.5)
+        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.line_spacing = 1.3
     
     doc.save(output_path)
 
@@ -2333,6 +3050,118 @@ def api_grade():
                 'rule_names': [r['name'] for r in custom_rules],
             })
         
+        # ========== 客观题子题型（文字输入模式）==========
+        objective_subtypes = ['objective_reading', 'objective_six_choose_four', 'objective_cloze', 'objective_grammar', 'objective_cat_fishing']
+        if grade_type in objective_subtypes:
+            # 获取表单数据
+            wrong_questions_text = request.form.get('wrong_questions', '').strip()
+            answer_files = request.files.getlist('answer_file')
+            
+            print(f"[DEBUG] 题型: {grade_type}")
+            print(f"[DEBUG] 错题文本长度: {len(wrong_questions_text)}")
+            print(f"[DEBUG] 答案文件数量: {len(answer_files)}")
+            for i, f in enumerate(answer_files):
+                print(f"[DEBUG] 文件{i}: filename={f.filename}, content_type={f.content_type}")
+            
+            if not wrong_questions_text:
+                return jsonify({'success': False, 'error': '请输入错题信息'})
+            if not answer_files:
+                return jsonify({'success': False, 'error': '请上传题目解析文档'})
+            
+            # 保存题目解析文件
+            uploaded_answer_files = []
+            for f in answer_files:
+                if f.filename:
+                    filename = secure_filename(f.filename)
+                    save_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{task_id}_answer_{filename}")
+                    f.save(save_path)
+                    file_size = os.path.getsize(save_path)
+                    print(f"[DEBUG] 文件已保存: {save_path}, 大小: {file_size} bytes")
+                    uploaded_answer_files.append(save_path)
+            
+            # 读取题目解析（Word文档）
+            answer_key_text = ''
+            for ans_file in uploaded_answer_files:
+                ext = os.path.splitext(ans_file)[1].lower()
+                print(f"[DEBUG] 读取文件: {ans_file}, 扩展名: {ext}")
+                if ext in {'.docx', '.doc'}:
+                    text = extract_text_from_docx(ans_file)
+                    print(f"[DEBUG] 提取文本长度: {len(text) if text else 0}")
+                    if text:
+                        answer_key_text += text + '\n'
+            
+            if not answer_key_text:
+                return jsonify({'success': False, 'error': '未能读取题目解析内容，请检查文件格式'})
+            
+            # 获取模板
+            template = get_effective_template(grade_type)
+            title = template.get('name', '客观题批改')
+            
+            # 调用AI批改
+            ai_result = grade_objective_text_with_doubao(
+                wrong_questions_text, answer_key_text, template,
+                api_key=api_key,
+                model_name=model_name,
+                custom_rules=custom_rules,
+                template_folder=app.config['TEMPLATE_FOLDER']
+            )
+            
+            if not ai_result or not ai_result.get('success'):
+                error_msg = ai_result.get('error', 'AI返回为空') if ai_result else 'AI调用失败'
+                return jsonify({'success': False, 'error': f'AI批改失败：{error_msg}'})
+            
+            result = ai_result
+            result['ai_used'] = True
+            result['student_text'] = wrong_questions_text
+            
+            # 生成Word文档
+            today = datetime.date.today()
+            date_str = f"{today.month}.{today.day}"
+            project_name = title
+            base_filename = f"{date_str}-{project_name}批改"
+            
+            output_filename = f"{base_filename}.docx"
+            counter = 1
+            while os.path.exists(os.path.join(app.config['OUTPUT_FOLDER'], output_filename)):
+                output_filename = f"{base_filename}({counter}).docx"
+                counter += 1
+            
+            output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+            generate_objective_doc(result, output_path, title, None, template=template)
+            
+            # 保存历史记录
+            history_record = {
+                'id': task_id,
+                'filename': output_filename,
+                'title': title,
+                'score': result.get('score', 0),
+                'full_score': result.get('full_score', 100),
+                'create_time': int(time.time()),
+                'grade_type': grade_type,
+            }
+            add_history_record(history_record)
+            
+            # 自动删除上传的源文件
+            for f in uploaded_answer_files:
+                try:
+                    if os.path.exists(f):
+                        os.remove(f)
+                except:
+                    pass
+            
+            return jsonify({
+                'success': True,
+                'result': {
+                    'score': result.get('score', 0),
+                    'full_score': result.get('full_score', 100),
+                    'total_questions': result.get('total_questions', 0),
+                    'correct_count': result.get('correct_count', 0),
+                    'wrong_count': result.get('wrong_count', 0),
+                    'download_url': f'/download/{output_filename}',
+                    'filename': output_filename,
+                }
+            })
+        
         # ========== 其他题型批改 ==========
         files = request.files.getlist('files')
         
@@ -2383,10 +3212,113 @@ def api_grade():
             }
             title = title_map.get(grade_type, '作业批改')
         
+        # ===== 概要写作讲义模式 =====
+        if grade_type == 'summary':
+            handout_mode = request.form.get('mode') == 'handout'
+            if handout_mode:
+                # 讲义模式：图片=原文，docx/pdf=格式参考
+                image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'}
+                doc_extensions = {'.docx', '.doc', '.pdf', '.txt'}
+                
+                # 分离图片文件和文档文件
+                handout_images = [f for f in uploaded_files if os.path.splitext(f)[1].lower() in image_extensions]
+                handout_docs = [f for f in uploaded_files if os.path.splitext(f)[1].lower() in doc_extensions]
+                
+                # 提取格式参考文档的文本内容
+                format_reference_text = ''
+                for doc_file in handout_docs:
+                    doc_text = extract_text_from_file(doc_file)
+                    if doc_text:
+                        format_reference_text += doc_text + '\n'
+                
+                # 原文内容：如果有图片，用图片识别；否则用文本输入
+                passage_text = student_input
+                
+                # 如果有图片且没有文本输入，提示AI识别图片中的原文
+                if handout_images and not passage_text.strip():
+                    passage_text = '（请识别以上图片中的原文内容，基于该原文生成讲义）'
+                
+                # 获取评分标准内容
+                scoring_standard_text = ''
+                if grade_type in BUILTIN_GRADING_STANDARDS:
+                    scoring_standard_text = get_grading_standard_content(grade_type)
+                
+                handout_result = generate_summary_handout_with_doubao(
+                    passage_text, template,
+                    scoring_standard_text=scoring_standard_text,
+                    api_key=api_key,
+                    model_name=model_name,
+                    custom_rules=custom_rules,
+                    template_folder=app.config['TEMPLATE_FOLDER'],
+                    image_paths=handout_images if handout_images else None,
+                    format_reference_text=format_reference_text
+                )
+                
+                if not handout_result or not handout_result.get('success'):
+                    error_msg = handout_result.get('error', 'AI返回为空') if handout_result else 'AI调用失败'
+                    return jsonify({'success': False, 'error': f'AI生成失败：{error_msg}'})
+                
+                result = handout_result
+                result['ai_used'] = True
+                result['is_handout'] = True
+                
+                # 生成讲义Word文档
+                today = datetime.date.today()
+                date_str = f"{today.month}.{today.day}"
+                project_name = '概要写作讲义'
+                base_filename = f"{date_str}-{project_name}"
+                
+                output_filename = f"{base_filename}.docx"
+                counter = 1
+                while os.path.exists(os.path.join(app.config['OUTPUT_FOLDER'], output_filename)):
+                    output_filename = f"{base_filename}({counter}).docx"
+                    counter += 1
+                
+                output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+                generate_summary_handout_doc(result, output_path, project_name)
+                
+                # 保存历史记录
+                history_record = {
+                    'id': task_id,
+                    'filename': output_filename,
+                    'title': project_name,
+                    'score': 0,
+                    'full_score': template.get('full_score', 10),
+                    'create_time': int(time.time()),
+                    'grade_type': 'summary_handout',
+                }
+                add_history_record(history_record)
+                
+                return jsonify({
+                    'success': True,
+                    'task_id': task_id,
+                    'download_url': f'/download/{output_filename}',
+                    'filename': output_filename,
+                    'score': 0,
+                    'full_score': template.get('full_score', 10),
+                    'ai_used': True,
+                    'rules_applied': len(custom_rules),
+                    'rule_names': [r['name'] for r in custom_rules],
+                    'result': {
+                        'is_handout': True,
+                        'title': result.get('title', ''),
+                        'pattern': result.get('pattern_name', ''),
+                    }
+                })
+        
         # 获取评分标准内容
         grading_standard = None
         if grade_type and grade_type in BUILTIN_GRADING_STANDARDS:
             grading_standard = get_grading_standard_content(grade_type)
+        
+        # 提取上传的参考文档内容（docx/pdf/txt，仅作参考，不是学生答案）
+        reference_documents = ''
+        doc_extensions = {'.docx', '.doc', '.pdf', '.txt'}
+        ref_files = [f for f in uploaded_files if os.path.splitext(f)[1].lower() in doc_extensions]
+        for ref_file in ref_files:
+            ref_text = extract_text_from_file(ref_file)
+            if ref_text:
+                reference_documents += ref_text + '\n'
         
         # 使用AI智能批改
         ai_result = grade_with_doubao(
@@ -2395,7 +3327,8 @@ def api_grade():
             api_key=api_key,
             model_name=model_name,
             custom_rules=custom_rules,
-            grading_standard=grading_standard
+            grading_standard=grading_standard,
+            reference_documents=reference_documents
         )
 
         if not ai_result or not ai_result.get('success'):
