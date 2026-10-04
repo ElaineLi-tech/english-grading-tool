@@ -2630,8 +2630,16 @@
                 if (data.success) {
                     document.getElementById('result-score').textContent = data.score;
                     document.getElementById('result-full-score').textContent = data.full_score;
-                    document.getElementById('download-link').href = data.download_url;
-                    document.getElementById('download-link').download = data.filename;
+                    
+                    // 用 base64 生成下载链接
+                    const downloadLink = document.getElementById('download-link');
+                    if (data.file_data) {
+                        const blob = b64toBlob(data.file_data, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                        const url = URL.createObjectURL(blob);
+                        downloadLink.href = url;
+                        downloadLink.download = data.filename;
+                    }
+                    downloadLink.download = data.filename;
 
                     // 讲义模式结果展示
                     const scoreDisplay = document.getElementById('score-display');
@@ -2778,7 +2786,6 @@
                                     </div>
                                 </div>
                                 <div class="history-actions">
-                                    <button class="history-btn-download" onclick="downloadHistoryFile('${item.filename}')">下载</button>
                                     <button class="history-btn-delete" onclick="deleteHistoryRecord('${item.id}')">删除</button>
                                 </div>
                             </div>
@@ -2792,14 +2799,9 @@
             }
         }
 
-        // 下载历史文件
-        function downloadHistoryFile(filename) {
-            window.open('/download/' + encodeURIComponent(filename), '_blank');
-        }
-
         // 删除历史记录
         async function deleteHistoryRecord(recordId) {
-            if (!confirm('确定要删除这条记录吗？文件也会被一起删除。')) {
+            if (!confirm('确定要删除这条记录吗？')) {
                 return;
             }
             try {
@@ -3611,6 +3613,21 @@
             const div = document.createElement('div');
             div.appendChild(document.createTextNode(text));
             return div.innerHTML;
+        }
+
+        // Base64 转 Blob
+        function b64toBlob(b64Data, contentType) {
+            const byteCharacters = atob(b64Data);
+            const byteArrays = [];
+            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                const slice = byteCharacters.slice(offset, offset + 512);
+                const byteNumbers = new Array(slice.length);
+                for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                }
+                byteArrays.push(new Uint8Array(byteNumbers));
+            }
+            return new Blob(byteArrays, { type: contentType });
         }
     </script>
 </body>
