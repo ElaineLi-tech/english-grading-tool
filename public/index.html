@@ -543,6 +543,80 @@
             font-size: 14px;
         }
 
+        .extract-text-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-start;
+            margin-top: 12px;
+        }
+
+        .extract-text-hint {
+            font-size: 13px;
+            color: #666;
+            background: #fff8e1;
+            border-left: 3px solid #ffa726;
+            padding: 8px 12px;
+            border-radius: 4px;
+            width: 100%;
+            line-height: 1.5;
+        }
+
+        .extract-text-hint.success {
+            color: #2e7d32;
+            background: #e8f5e9;
+            border-left-color: #66bb6a;
+        }
+
+        .extract-text-hint.error {
+            color: #c62828;
+            background: #ffebee;
+            border-left-color: #ef5350;
+        }
+
+        .extract-text-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .extract-text-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .extract-text-btn:active {
+            transform: translateY(0);
+        }
+
+        .extract-text-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .extract-text-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .extract-text-btn.loading::after {
+            content: '⏳ 正在识别文字...';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            white-space: nowrap;
+        }
+
         .file-name {
             color: #333;
             overflow: hidden;
@@ -1632,6 +1706,11 @@
                         <input type="file" id="file-essay_zhongkao" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'essay_zhongkao')">
                     </div>
                     <div class="file-list" id="file-list-essay_zhongkao"></div>
+
+                    <div class="extract-text-section" id="extract-section-essay_zhongkao" style="display:none;">
+                        <div class="extract-text-hint" id="extract-hint-essay_zhongkao"></div>
+                        <button type="button" class="extract-text-btn" onclick="extractText('essay_zhongkao')">📝 提取并审核文字</button>
+                    </div>
                 </div>
 
                 <!-- 高考作文 -->
@@ -1668,6 +1747,11 @@
                         <input type="file" id="file-essay_gaokao" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'essay_gaokao')">
                     </div>
                     <div class="file-list" id="file-list-essay_gaokao"></div>
+
+                    <div class="extract-text-section" id="extract-section-essay_gaokao" style="display:none;">
+                        <div class="extract-text-hint" id="extract-hint-essay_gaokao"></div>
+                        <button type="button" class="extract-text-btn" onclick="extractText('essay_gaokao')">📝 提取并审核文字</button>
+                    </div>
                 </div>
 
                 <!-- 概要写作 -->
@@ -1789,6 +1873,11 @@
                         <input type="file" id="file-translation" multiple accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleFiles(this.files, 'translation')">
                     </div>
                     <div class="file-list" id="file-list-translation"></div>
+
+                    <div class="extract-text-section" id="extract-section-translation" style="display:none;">
+                        <div class="extract-text-hint" id="extract-hint-translation"></div>
+                        <button type="button" class="extract-text-btn" onclick="extractText('translation')">📝 提取并审核文字</button>
+                    </div>
                 </div>
 
                 <!-- 客观题 -->
@@ -2369,12 +2458,126 @@
                 `;
                 listEl.appendChild(item);
             }
+
+            // 作文和翻译类型：上传图片后显示提取文字按钮
+            const extractTypes = ['essay_zhongkao', 'essay_gaokao', 'translation'];
+            if (extractTypes.includes(type)) {
+                const hasImage = uploadedFiles[type].some(f => {
+                    const ext = f.name.split('.').pop().toLowerCase();
+                    return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'pdf'].includes(ext);
+                });
+                const section = document.getElementById('extract-section-' + type);
+                if (section) {
+                    if (hasImage) {
+                        section.style.display = 'flex';
+                        const hint = document.getElementById('extract-hint-' + type);
+                        if (hint && !hint.textContent) {
+                            hint.className = 'extract-text-hint';
+                            hint.textContent = '💡 已上传图片，建议先点击"提取并审核文字"，检查修正后再批改。';
+                        }
+                    } else {
+                        section.style.display = 'none';
+                    }
+                }
+            }
         }
 
         // 删除文件
         function removeFile(el, type, index) {
             uploadedFiles[type].splice(index, 1);
             el.parentElement.remove();
+
+            // 检查是否还有图片，更新提取按钮显示
+            const extractTypes = ['essay_zhongkao', 'essay_gaokao', 'translation'];
+            if (extractTypes.includes(type)) {
+                const hasImage = uploadedFiles[type].some(f => {
+                    const ext = f.name.split('.').pop().toLowerCase();
+                    return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'pdf'].includes(ext);
+                });
+                const section = document.getElementById('extract-section-' + type);
+                if (section) {
+                    section.style.display = hasImage ? 'flex' : 'none';
+                }
+            }
+        }
+
+        // 提取文字（OCR）
+        async function extractText(type) {
+            const btn = document.querySelector(`#extract-section-${type} .extract-text-btn`);
+            const hint = document.getElementById('extract-hint-' + type);
+
+            const files = uploadedFiles[type] || [];
+            if (files.length === 0) {
+                hint.className = 'extract-text-hint error';
+                hint.textContent = '❌ 请先上传图片文件';
+                return;
+            }
+
+            // 只保留图片和PDF
+            const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'pdf'];
+            const validFiles = files.filter(f => validExtensions.includes(f.name.split('.').pop().toLowerCase()));
+
+            if (validFiles.length === 0) {
+                hint.className = 'extract-text-hint error';
+                hint.textContent = '❌ 请上传图片或PDF文件';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('loading');
+            hint.className = 'extract-text-hint';
+            hint.textContent = '⏳ 正在识别图片中的文字，请稍候...';
+
+            const formData = new FormData();
+            formData.append('type', type);
+            for (let f of validFiles) {
+                formData.append('files', f);
+            }
+
+            try {
+                const response = await fetch('/api/extract-text', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // 填入对应的 textarea
+                    let textarea;
+                    if (type === 'translation') {
+                        textarea = document.getElementById('text-translation');
+                    } else {
+                        textarea = document.getElementById('text-' + type);
+                    }
+
+                    if (textarea) {
+                        // 如果 textarea 已有内容，提示用户
+                        if (textarea.value.trim()) {
+                            if (!confirm('当前输入框已有内容，是否替换为识别到的文字？')) {
+                                btn.disabled = false;
+                                btn.classList.remove('loading');
+                                hint.className = 'extract-text-hint';
+                                hint.textContent = '已取消替换，您可以继续编辑现有内容。';
+                                return;
+                            }
+                        }
+                        textarea.value = data.text;
+                        hint.className = 'extract-text-hint success';
+                        hint.textContent = '✅ 文字已提取，请检查并修改后点击"开始批改"。识别内容已填入上方文本框。';
+                        // 自动聚焦到文本框
+                        textarea.focus();
+                    }
+                } else {
+                    hint.className = 'extract-text-hint error';
+                    hint.textContent = '❌ 文字提取失败：' + (data.error || '未知错误');
+                }
+            } catch (e) {
+                hint.className = 'extract-text-hint error';
+                hint.textContent = '❌ 网络错误，请重试';
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
         }
 
         // 当前客观题子题型
@@ -2610,8 +2813,23 @@
                 }
                 formData.append('wrong_questions', document.getElementById('wrong-' + currentObjectiveSubtype).value);
             } else {
-                for (let f of files) {
-                    formData.append('files', f);
+                // 作文和翻译类型：如果有审核后的文字，优先使用文字，不传图片
+                const textExtractTypes = ['essay_zhongkao', 'essay_gaokao', 'translation'];
+                const hasReviewedText = text.trim().length > 0;
+
+                if (textExtractTypes.includes(currentType) && hasReviewedText) {
+                    // 用户已审核文字，只传参考文档（docx/pdf），不传图片
+                    const docExtensions = ['doc', 'docx', 'pdf', 'txt'];
+                    for (let f of files) {
+                        const ext = f.name.split('.').pop().toLowerCase();
+                        if (docExtensions.includes(ext)) {
+                            formData.append('files', f);
+                        }
+                    }
+                } else {
+                    for (let f of files) {
+                        formData.append('files', f);
+                    }
                 }
                 // 概要写作讲义模式标识
                 if (currentType === 'summary' && summaryMode === 'handout') {

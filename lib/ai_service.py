@@ -878,3 +878,75 @@ def generate_summary_handout_with_doubao(passage_text, template, scoring_standar
         return data
     except json.JSONDecodeError as e:
         return {'success': False, 'error': f'JSON解析失败: {str(e)}', 'raw_output': output_text[:500]}
+
+
+# ==================== 文字提取（OCR） ====================
+
+def extract_text_with_doubao(image_paths, api_key='', model_name='doubao-seed-2-0-mini-260428', grade_type='essay'):
+    """使用豆包AI从图片中提取文字（OCR）
+    image_paths: 图片文件路径列表
+    grade_type: 批改类型，用于定制提取提示（essay=作文，translation=翻译）
+    返回: {'success': True, 'text': '提取的文字内容'}
+    """
+    if not api_key or not image_paths or len(image_paths) == 0:
+        return {'success': False, 'error': '缺少图片或API密钥'}
+
+    # 构建 input 列表（Responses API格式）
+    content = []
+
+    # 添加所有图片
+    for img_path in image_paths:
+        img_base64 = encode_image_to_base64(img_path)
+        content.append({
+            "type": "input_image",
+            "image_url": f"data:image/jpeg;base64,{img_base64}"
+        })
+
+    # 根据类型构建提取提示
+    if grade_type == 'translation':
+        # 翻译：提取原文和学生译文
+        prompt = """请仔细识别以上图片中的所有文字内容，并按原文和译文分别提取。
+
+要求：
+1. 准确识别图片中的所有英文和中文文字
+2. 如果图片中包含原文（英文）和学生译文（中文），请分别列出
+3. 保持原文的段落结构和换行
+4. 只输出识别到的文字内容，不要添加任何分析、点评或说明
+5. 不要添加"原文：""译文："等标签，直接输出文字内容
+6. 如果有多张图片，将所有图片的文字按顺序合并输出"""
+    else:
+        # 作文：提取学生作文
+        prompt = """请仔细识别以上图片中的学生作文文字内容。
+
+要求：
+1. 准确识别图片中的所有英文文字（包括大小写、标点符号）
+2. 保持作文的段落结构和换行
+3. 只输出识别到的作文文字，不要添加任何分析、点评或说明
+4. 如果有多张图片，将所有图片的文字按顺序合并输出
+5. 不要遗漏任何文字内容"""
+
+    content.append({
+        "type": "input_text",
+        "text": prompt
+    })
+
+    input_list = [{"role": "user", "content": content}]
+
+    # 调用API
+    result = call_doubao_chat(input_list, api_key, model_name, temperature=0.1)
+
+    if not result['success']:
+        return {
+            'success': False,
+            'error': f'AI调用失败：{result["error"]}'
+        }
+
+    text = result.get('content', '').strip()
+
+    if not text:
+        return {'success': False, 'error': 'AI未返回文字内容'}
+
+    return {
+        'success': True,
+        'text': text
+    }

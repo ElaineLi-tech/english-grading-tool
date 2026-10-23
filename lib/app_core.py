@@ -24,6 +24,7 @@ from .ai_service import (
     grade_objective_with_doubao,
     grade_objective_text_with_doubao,
     generate_summary_handout_with_doubao,
+    extract_text_with_doubao,
 )
 from .doc_generator import (
     generate_essay_doc,
@@ -987,6 +988,114 @@ def create_app():
                 'message': '已恢复默认评分标准',
                 'info': info
             })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
+
+    # ==================== 文字提取API ====================
+
+    @app.route('/api/extract-text', methods=['POST'])
+    def api_extract_text():
+        """从图片中提取文字（OCR），供用户审核后再批改
+        适用于作文和翻译类型
+        """
+        try:
+            grade_type = request.form.get('type', 'essay')
+            files = request.files.getlist('files')
+
+            if not files:
+                return jsonify({'success': False, 'error': '请上传图片文件'})
+
+            # 检查AI配置
+            config = load_config()
+            api_key = config.get('doubao_api_key', '')
+            model_name = config.get('doubao_model', 'doubao-seed-2-0-mini-260428')
+            ai_enabled = config.get('ai_enabled', False)
+
+            if not ai_enabled or not api_key:
+                return jsonify({'success': False, 'error': '请先在设置中配置并启用AI模型'})
+
+            # 生成唯一ID
+            task_id = str(uuid.uuid4())[:8]
+
+            # 保存上传的文件
+            uploaded_files = []
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'}
+            for f in files:
+                if f.filename:
+                    filename = secure_filename(f.filename)
+                    save_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{task_id}_extract_{filename}")
+                    f.save(save_path)
+                    uploaded_files.append(save_path)
+
+            # 分离图片文件
+            image_files = [
+                f for f in uploaded_files
+                if os.path.splitext(f)[1].lower() in image_extensions
+            ]
+
+            # 如果有PDF，转为图片
+            pdf_files = [
+                f for f in uploaded_files
+                if os.path.splitext(f)[1].lower() == '.pdf'
+            ]
+            if pdf_files:
+                try:
+                    import fitz  # PyMuPDF
+                    for pdf_file in pdf_files:
+                        pdf_doc = fitz.open(pdf_file)
+                        for page_num in range(pdf_doc.page_count):
+                            page = pdf_doc[page_num]
+                            pix = page.get_pixmap(dpi=150)
+                            img_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{task_id}_extract_pdf_{page_num}.jpg")
+                            pix.save(img_path)
+                            image_files.append(img_path)
+                        pdf_doc.close()
+                except Exception as e:
+                    return jsonify({'success': False, 'error': f'PDF转换失败：{str(e)}'})
+
+            if not image_files:
+                # 清理临时文件
+                for f in uploaded_files:
+                    try:
+                        if os.path.exists(f):
+                            os.remove(f)
+                    except Exception:
+                        pass
+                return jsonify({'success': False, 'error': '未找到图片文件，请上传图片或PDF'})
+
+            # 调用AI提取文字
+            extract_result = extract_text_with_doubao(
+                image_files, api_key=api_key, model_name=model_name,
+                grade_type=grade_type
+            )
+
+            # 清理临时文件
+            for f in uploaded_files:
+                try:
+                    if os.path.exists(f):
+                        os.remove(f)
+                except Exception:
+                    pass
+            # 清理PDF转换的临时图片
+            for f in image_files:
+                if '_extract_pdf_' in os.path.basename(f):
+                    try:
+                        if os.path.exists(f):
+                            os.remove(f)
+                    except Exception:
+                        pass
+
+            if extract_result.get('success'):
+                return jsonify({
+                    'success': True,
+                    'text': extract_result['text']
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': extract_result.get('error', '文字提取失败')
+                })
+
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
