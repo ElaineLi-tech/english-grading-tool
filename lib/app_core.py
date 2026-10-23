@@ -42,10 +42,17 @@ def create_app():
 
     app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 
-    # Vercel 环境检测
-    IS_VERCEL = os.environ.get('VERCEL', '') == '1' or os.environ.get('VERCEL_ENV') is not None
+    # EdgeOne Makers 云环境下，路由前缀需要去掉 /api
+    # 因为 EdgeOne 会自动剥离文件系统路由前缀 /api
+    # 本地开发环境保留 /api 前缀
+    API_PREFIX = '' if os.environ.get('STORAGE_MODE') == 'cloud' else '/api'
 
-    if IS_VERCEL:
+    # 环境检测
+    IS_VERCEL = os.environ.get('VERCEL', '') == '1' or os.environ.get('VERCEL_ENV') is not None
+    IS_CLOUD = os.environ.get('STORAGE_MODE') == 'cloud'
+
+    if IS_VERCEL or IS_CLOUD:
+        # 云环境（Vercel / EdgeOne Makers）：文件系统只读，使用 /tmp 作为可写目录
         app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
         app.config['OUTPUT_FOLDER'] = '/tmp/outputs'
         app.config['TEMPLATE_FOLDER'] = '/tmp/templates_user'
@@ -60,12 +67,16 @@ def create_app():
 
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['TEMPLATE_FOLDER'], exist_ok=True)
+    # 创建可写目录（云环境下 /tmp 可写；本地环境直接创建）
+    for folder_key in ['UPLOAD_FOLDER', 'OUTPUT_FOLDER', 'TEMPLATE_FOLDER']:
+        try:
+            os.makedirs(app.config[folder_key], exist_ok=True)
+        except OSError:
+            # 只读文件系统中目录可能已存在或无法创建，忽略错误
+            pass
 
-    # Vercel 环境：将静态模板目录的文件复制到 /tmp 可写目录
-    if IS_VERCEL:
+    # 云环境：将静态模板目录的文件复制到 /tmp 可写目录
+    if IS_VERCEL or IS_CLOUD:
         import shutil
         static_dir = app.config['STATIC_TEMPLATE_FOLDER']
         temp_dir = app.config['TEMPLATE_FOLDER']
@@ -74,10 +85,14 @@ def create_app():
                 src = os.path.join(static_dir, fname)
                 dst = os.path.join(temp_dir, fname)
                 if os.path.isfile(src) and not os.path.exists(dst):
-                    shutil.copy2(src, dst)
+                    try:
+                        shutil.copy2(src, dst)
+                    except OSError:
+                        pass
 
-    # 初始化 storage
-    storage = get_storage(mode='local', base_dir=app.config['TEMPLATE_FOLDER'])
+    # 初始化 storage：云环境使用 cloud 模式，本地使用 local 模式
+    storage_mode = 'cloud' if IS_CLOUD else 'local'
+    storage = get_storage(mode=storage_mode, base_dir=app.config['TEMPLATE_FOLDER'])
     app.storage = storage
 
     # ==================== 辅助函数（使用 storage 抽象层） ====================
@@ -248,7 +263,7 @@ def create_app():
 
     # ==================== AI配置API ====================
 
-    @app.route('/api/config', methods=['GET'])
+    @app.route(API_PREFIX + '/config', methods=['GET'])
     def api_config_get():
         """获取系统配置（不含API Key明文）"""
         config = load_config()
@@ -259,7 +274,7 @@ def create_app():
         }
         return jsonify({'success': True, 'config': masked_config})
 
-    @app.route('/api/config', methods=['POST'])
+    @app.route(API_PREFIX + '/config', methods=['POST'])
     def api_config_save():
         """保存系统配置"""
         try:
@@ -283,7 +298,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/config/test', methods=['POST'])
+    @app.route(API_PREFIX + '/config/test', methods=['POST'])
     def api_config_test():
         """测试AI配置是否有效"""
         try:
@@ -317,7 +332,7 @@ def create_app():
 
     # ==================== 自定义模板API ====================
 
-    @app.route('/api/templates', methods=['GET'])
+    @app.route(API_PREFIX + '/templates', methods=['GET'])
     def api_templates_list():
         """获取所有自定义模板列表"""
         templates = load_templates()
@@ -326,7 +341,7 @@ def create_app():
             'templates': templates
         })
 
-    @app.route('/api/templates', methods=['POST'])
+    @app.route(API_PREFIX + '/templates', methods=['POST'])
     def api_template_create():
         """创建新的自定义模板"""
         try:
@@ -385,7 +400,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/templates/<template_id>', methods=['DELETE'])
+    @app.route(API_PREFIX + '/templates/<template_id>', methods=['DELETE'])
     def api_template_delete(template_id):
         """删除自定义模板"""
         try:
@@ -398,7 +413,7 @@ def create_app():
 
     # ==================== 自定义规则API ====================
 
-    @app.route('/api/rules', methods=['GET'])
+    @app.route(API_PREFIX + '/rules', methods=['GET'])
     def api_rules_list():
         """获取所有自定义规则"""
         try:
@@ -410,7 +425,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/rules', methods=['POST'])
+    @app.route(API_PREFIX + '/rules', methods=['POST'])
     def api_rule_create():
         """创建新的自定义规则"""
         try:
@@ -445,7 +460,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/rules/<rule_id>', methods=['PUT'])
+    @app.route(API_PREFIX + '/rules/<rule_id>', methods=['PUT'])
     def api_rule_update(rule_id):
         """更新自定义规则"""
         try:
@@ -475,7 +490,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/rules/<rule_id>', methods=['DELETE'])
+    @app.route(API_PREFIX + '/rules/<rule_id>', methods=['DELETE'])
     def api_rule_delete(rule_id):
         """删除自定义规则"""
         try:
@@ -486,7 +501,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/rules/<rule_id>/toggle', methods=['POST'])
+    @app.route(API_PREFIX + '/rules/<rule_id>/toggle', methods=['POST'])
     def api_rule_toggle(rule_id):
         """切换规则启用/禁用状态"""
         try:
@@ -508,7 +523,7 @@ def create_app():
 
     # ==================== 历史记录API ====================
 
-    @app.route('/api/history', methods=['GET'])
+    @app.route(API_PREFIX + '/history', methods=['GET'])
     def api_history():
         """获取批改历史记录（仅保存摘要，不存储生成的文件）"""
         try:
@@ -517,7 +532,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/history/<record_id>', methods=['DELETE'])
+    @app.route(API_PREFIX + '/history/<record_id>', methods=['DELETE'])
     def api_history_delete(record_id):
         """删除历史记录（仅删除摘要记录，生成的文件未存储）"""
         try:
@@ -530,7 +545,7 @@ def create_app():
 
     # ==================== 模板管理API ====================
 
-    @app.route('/api/templates/all', methods=['GET'])
+    @app.route(API_PREFIX + '/templates/all', methods=['GET'])
     def api_templates_all():
         """获取所有模板（内置+自定义）"""
         try:
@@ -568,7 +583,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/templates/detail/<template_id>', methods=['GET'])
+    @app.route(API_PREFIX + '/templates/detail/<template_id>', methods=['GET'])
     def api_template_detail(template_id):
         """获取单个模板详情"""
         try:
@@ -604,7 +619,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/templates/<template_id>/content', methods=['GET'])
+    @app.route(API_PREFIX + '/templates/<template_id>/content', methods=['GET'])
     def api_template_content(template_id):
         """获取模板文件的内容（用于预览模板格式）"""
         try:
@@ -736,7 +751,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/templates/builtin/<template_key>/override', methods=['POST'])
+    @app.route(API_PREFIX + '/templates/builtin/<template_key>/override', methods=['POST'])
     def api_builtin_template_override(template_key):
         """上传用户自定义模板来覆盖内置模板"""
         try:
@@ -794,7 +809,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/templates/builtin/<template_key>/reset', methods=['POST'])
+    @app.route(API_PREFIX + '/templates/builtin/<template_key>/reset', methods=['POST'])
     def api_builtin_template_reset(template_key):
         """恢复内置模板为默认（删除用户覆盖）"""
         try:
@@ -818,7 +833,7 @@ def create_app():
 
     # ==================== 评分标准API ====================
 
-    @app.route('/api/grading-standards/<grade_type>', methods=['GET'])
+    @app.route(API_PREFIX + '/grading-standards/<grade_type>', methods=['GET'])
     def api_grading_standard_info(grade_type):
         """获取指定题型的评分标准信息"""
         try:
@@ -832,7 +847,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/grading-standards/<grade_type>/content', methods=['GET'])
+    @app.route(API_PREFIX + '/grading-standards/<grade_type>/content', methods=['GET'])
     def api_grading_standard_content(grade_type):
         """获取评分标准文件内容（用于预览）"""
         try:
@@ -918,7 +933,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/grading-standards/<grade_type>/upload', methods=['POST'])
+    @app.route(API_PREFIX + '/grading-standards/<grade_type>/upload', methods=['POST'])
     def api_grading_standard_upload(grade_type):
         """上传用户自定义评分标准"""
         try:
@@ -964,7 +979,7 @@ def create_app():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
-    @app.route('/api/grading-standards/<grade_type>/reset', methods=['POST'])
+    @app.route(API_PREFIX + '/grading-standards/<grade_type>/reset', methods=['POST'])
     def api_grading_standard_reset(grade_type):
         """重置评分标准为默认"""
         try:
@@ -993,7 +1008,7 @@ def create_app():
 
     # ==================== 文字提取API ====================
 
-    @app.route('/api/extract-text', methods=['POST'])
+    @app.route(API_PREFIX + '/extract-text', methods=['POST'])
     def api_extract_text():
         """从图片中提取文字（OCR），供用户审核后再批改
         适用于作文和翻译类型
@@ -1101,7 +1116,7 @@ def create_app():
 
     # ==================== 批改API ====================
 
-    @app.route('/api/grade', methods=['POST'])
+    @app.route(API_PREFIX + '/grade', methods=['POST'])
     def api_grade():
         """批改API - 全部使用AI智能批改"""
         try:

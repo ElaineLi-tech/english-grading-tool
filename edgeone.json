@@ -5,21 +5,13 @@
       "includeFiles": [
         "lib/**",
         "builtin_templates/**",
+        "templates/**",
+        "templates_user/**",
         "requirements.txt"
       ]
     }
   },
   "env": {
     "STORAGE_MODE": "cloud"
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "cloud-functions/api/[[default]].py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "public/$1"
-    }
-  ]
+  }
 }
