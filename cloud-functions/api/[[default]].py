@@ -18,9 +18,14 @@ os.environ.setdefault('STORAGE_MODE', 'cloud')
 
 # app_core.py 使用了相对导入（from .templates_data import ...）
 # 必须以 lib 包的方式导入
+from flask import Flask
 from lib.app_core import create_app
 
-# 创建 Flask 应用
+# EdgeOne Makers 入口文件识别规则：
+# 只有包含 `app = Flask(...)` 等入口标识的 .py 文件才会被注册为路由。
+# 因此先创建一个 Flask 实例用于入口识别，再用 create_app() 返回的
+# 完整配置应用实例覆盖它。
+app = Flask(__name__)
 app = create_app()
 
 # EdgeOne Makers Python WSGI 模式
