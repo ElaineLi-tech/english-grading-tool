@@ -42,10 +42,10 @@ def create_app():
 
     app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 
-    # EdgeOne Makers 云环境下，路由前缀需要去掉 /api
-    # 因为 EdgeOne 会自动剥离文件系统路由前缀 /api
-    # 本地开发环境保留 /api 前缀
-    API_PREFIX = '' if os.environ.get('STORAGE_MODE') == 'cloud' else '/api'
+    # EdgeOne Makers 云环境：云函数使用 catch-all（cloud-functions/[[default]].py），
+    # 接收完整路径，因此 API 路由保留 /api 前缀，与前端 fetch('/api/...') 一致。
+    # 本地开发环境同样使用 /api 前缀。
+    API_PREFIX = '/api'
 
     # 环境检测
     IS_VERCEL = os.environ.get('VERCEL', '') == '1' or os.environ.get('VERCEL_ENV') is not None
