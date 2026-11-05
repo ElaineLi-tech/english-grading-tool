@@ -1711,6 +1711,28 @@
                         <div class="extract-text-hint" id="extract-hint-essay_zhongkao"></div>
                         <button type="button" class="extract-text-btn" onclick="extractText('essay_zhongkao')">📝 提取并审核文字</button>
                     </div>
+
+                    <!-- 评分标准区域 -->
+                    <div class="grading-standard-section" id="grading-standard-essay_zhongkao" style="margin-top: 16px;">
+                        <div class="section-title" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>📋 评分标准</span>
+                            <span class="standard-badge" id="standard-badge-essay_zhongkao" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e0e7ff; color: #4338ca; font-weight: 500;">默认</span>
+                        </div>
+                        <div class="standard-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="font-size: 24px;">📊</div>
+                                <div>
+                                    <div class="standard-name" id="standard-name-essay_zhongkao" style="font-size: 13px; font-weight: 500; color: #334155;">上海中考英语作文评分规则</div>
+                                    <div class="standard-desc" id="standard-desc-essay_zhongkao" style="font-size: 11px; color: #94a3b8; margin-top: 2px;">系统默认评分标准</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="standard-btn" onclick="viewGradingStandard('essay_zhongkao')" style="padding: 5px 12px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; color: #475569; cursor: pointer; transition: all 0.2s;">查看</button>
+                                <button class="standard-btn" onclick="document.getElementById('standard-file-essay_zhongkao').click()" style="padding: 5px 12px; background: #4f46e5; border: 1px solid #4f46e5; border-radius: 6px; font-size: 12px; color: white; cursor: pointer; transition: all 0.2s;">修改</button>
+                                <input type="file" id="standard-file-essay_zhongkao" accept=".doc,.docx,.pdf,.txt" style="display:none" onchange="uploadGradingStandard('essay_zhongkao', this.files[0])">
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 高考作文 -->
@@ -1751,6 +1773,28 @@
                     <div class="extract-text-section" id="extract-section-essay_gaokao" style="display:none;">
                         <div class="extract-text-hint" id="extract-hint-essay_gaokao"></div>
                         <button type="button" class="extract-text-btn" onclick="extractText('essay_gaokao')">📝 提取并审核文字</button>
+                    </div>
+
+                    <!-- 评分标准区域 -->
+                    <div class="grading-standard-section" id="grading-standard-essay_gaokao" style="margin-top: 16px;">
+                        <div class="section-title" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>📋 评分标准</span>
+                            <span class="standard-badge" id="standard-badge-essay_gaokao" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e0e7ff; color: #4338ca; font-weight: 500;">默认</span>
+                        </div>
+                        <div class="standard-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="font-size: 24px;">📊</div>
+                                <div>
+                                    <div class="standard-name" id="standard-name-essay_gaokao" style="font-size: 13px; font-weight: 500; color: #334155;">上海高考大作文评分规则</div>
+                                    <div class="standard-desc" id="standard-desc-essay_gaokao" style="font-size: 11px; color: #94a3b8; margin-top: 2px;">系统默认评分标准</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="standard-btn" onclick="viewGradingStandard('essay_gaokao')" style="padding: 5px 12px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; color: #475569; cursor: pointer; transition: all 0.2s;">查看</button>
+                                <button class="standard-btn" onclick="document.getElementById('standard-file-essay_gaokao').click()" style="padding: 5px 12px; background: #4f46e5; border: 1px solid #4f46e5; border-radius: 6px; font-size: 12px; color: white; cursor: pointer; transition: all 0.2s;">修改</button>
+                                <input type="file" id="standard-file-essay_gaokao" accept=".doc,.docx,.pdf,.txt" style="display:none" onchange="uploadGradingStandard('essay_gaokao', this.files[0])">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1877,6 +1921,28 @@
                     <div class="extract-text-section" id="extract-section-translation" style="display:none;">
                         <div class="extract-text-hint" id="extract-hint-translation"></div>
                         <button type="button" class="extract-text-btn" onclick="extractText('translation')">📝 提取并审核文字</button>
+                    </div>
+
+                    <!-- 评分标准区域 -->
+                    <div class="grading-standard-section" id="grading-standard-translation" style="margin-top: 16px;">
+                        <div class="section-title" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>📋 评分标准</span>
+                            <span class="standard-badge" id="standard-badge-translation" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e0e7ff; color: #4338ca; font-weight: 500;">默认</span>
+                        </div>
+                        <div class="standard-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="font-size: 24px;">📊</div>
+                                <div>
+                                    <div class="standard-name" id="standard-name-translation" style="font-size: 13px; font-weight: 500; color: #334155;">英语翻译评分规则</div>
+                                    <div class="standard-desc" id="standard-desc-translation" style="font-size: 11px; color: #94a3b8; margin-top: 2px;">系统默认评分标准</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="standard-btn" onclick="viewGradingStandard('translation')" style="padding: 5px 12px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; color: #475569; cursor: pointer; transition: all 0.2s;">查看</button>
+                                <button class="standard-btn" onclick="document.getElementById('standard-file-translation').click()" style="padding: 5px 12px; background: #4f46e5; border: 1px solid #4f46e5; border-radius: 6px; font-size: 12px; color: white; cursor: pointer; transition: all 0.2s;">修改</button>
+                                <input type="file" id="standard-file-translation" accept=".doc,.docx,.pdf,.txt" style="display:none" onchange="uploadGradingStandard('translation', this.files[0])">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2259,8 +2325,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadTemplates();
             loadAIConfig();
-            // 加载概要写作评分标准
-            loadGradingStandard('summary');
+            // 加载各题型评分标准
+            ['essay_gaokao', 'essay_zhongkao', 'essay_ielts', 'summary', 'translation'].forEach(loadGradingStandard);
         });
 
         // 加载模板列表

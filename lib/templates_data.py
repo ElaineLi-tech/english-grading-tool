@@ -148,8 +148,24 @@ BUILTIN_TEMPLATES = {
 
 # 内置默认评分标准（题型 -> 默认文件名）
 BUILTIN_GRADING_STANDARDS = {
+    'essay_gaokao': {
+        'default_file': 'standard_gaokao_default.docx',
+        'name': '上海高考大作文评分规则'
+    },
+    'essay_zhongkao': {
+        'default_file': 'standard_zhongkao_default.docx',
+        'name': '上海中考英语作文评分规则'
+    },
+    'essay_ielts': {
+        'default_file': 'standard_ielts_default.docx',
+        'name': '雅思写作评分规则'
+    },
     'summary': {
         'default_file': 'standard_summary_default.docx',
         'name': '概要写作评分标准（3+2得分点）'
+    },
+    'translation': {
+        'default_file': 'standard_translation_default.docx',
+        'name': '英语翻译评分规则'
     }
 }

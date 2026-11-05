@@ -59,24 +59,39 @@ def create_app():
         app.config['STATIC_TEMPLATE_FOLDER'] = os.path.join(BASE_DIR, 'templates_user')
         app.config['BUILTIN_TEMPLATE_FILES_DIR'] = os.path.join(BASE_DIR, 'builtin_templates')
     else:
-        app.config['UPLOAD_FOLDER'] = 'uploads'
-        app.config['OUTPUT_FOLDER'] = 'outputs'
-        app.config['TEMPLATE_FOLDER'] = 'templates_user'
-        app.config['STATIC_TEMPLATE_FOLDER'] = 'templates_user'
+        # 本地环境：优先使用项目目录，不可写时（如沙箱）回退到 /tmp
+        def _writable_dir(project_subdir, tmp_name):
+            project_path = os.path.join(BASE_DIR, project_subdir)
+            try:
+                os.makedirs(project_path, exist_ok=True)
+                # 测试可写
+                test_file = os.path.join(project_path, '.write_test')
+                with open(test_file, 'w') as f:
+                    f.write('')
+                os.remove(test_file)
+                return project_path
+            except OSError:
+                tmp_path = os.path.join('/tmp', tmp_name)
+                os.makedirs(tmp_path, exist_ok=True)
+                return tmp_path
+
+        app.config['UPLOAD_FOLDER'] = _writable_dir('uploads', 'grading_tool_uploads')
+        app.config['OUTPUT_FOLDER'] = _writable_dir('outputs', 'grading_tool_outputs')
+        app.config['TEMPLATE_FOLDER'] = _writable_dir('templates_user', 'grading_tool_templates_user')
+        app.config['STATIC_TEMPLATE_FOLDER'] = os.path.join(BASE_DIR, 'templates_user')
         app.config['BUILTIN_TEMPLATE_FILES_DIR'] = os.path.join(BASE_DIR, 'builtin_templates')
 
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 
-    # 创建可写目录（云环境下 /tmp 可写；本地环境直接创建）
+    # 创建可写目录
     for folder_key in ['UPLOAD_FOLDER', 'OUTPUT_FOLDER', 'TEMPLATE_FOLDER']:
         try:
             os.makedirs(app.config[folder_key], exist_ok=True)
         except OSError:
-            # 只读文件系统中目录可能已存在或无法创建，忽略错误
             pass
 
-    # 云环境：将静态模板目录的文件复制到 /tmp 可写目录
-    if IS_VERCEL or IS_CLOUD:
+    # 云环境或本地回退到 /tmp 时：将静态模板目录的文件复制到可写目录
+    if (IS_VERCEL or IS_CLOUD) or app.config['TEMPLATE_FOLDER'].startswith('/tmp'):
         import shutil
         static_dir = app.config['STATIC_TEMPLATE_FOLDER']
         temp_dir = app.config['TEMPLATE_FOLDER']
@@ -191,9 +206,20 @@ def create_app():
         if not standard_file:
             return ''
 
-        file_path = os.path.join(app.config['TEMPLATE_FOLDER'], standard_file)
+        # 默认评分标准存放在 builtin_templates/（随代码部署）；用户自定义的存放在 TEMPLATE_FOLDER
+        if info.get('is_default'):
+            base_dir = app.config.get('BUILTIN_TEMPLATE_FILES_DIR', app.config['TEMPLATE_FOLDER'])
+        else:
+            base_dir = app.config['TEMPLATE_FOLDER']
+        file_path = os.path.join(base_dir, standard_file)
+
+        # 兜底：若默认目录中找不到，尝试 TEMPLATE_FOLDER
         if not os.path.exists(file_path):
-            return ''
+            fallback = os.path.join(app.config['TEMPLATE_FOLDER'], standard_file)
+            if os.path.exists(fallback):
+                file_path = fallback
+            else:
+                return ''
 
         ext = os.path.splitext(file_path)[1].lower()
         if ext in {'.docx', '.doc'}:
